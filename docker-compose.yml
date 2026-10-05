@@ -1,0 +1,47 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: nutrino_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-nutrino}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nutrino_password}
+      POSTGRES_DB: ${POSTGRES_DB:-nutrino_db}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-nutrino} -d ${POSTGRES_DB:-nutrino_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: nutrino_backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      POSTGRES_SERVER: db
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-nutrino}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nutrino_password}
+      POSTGRES_DB: ${POSTGRES_DB:-nutrino_db}
+      SECRET_KEY: ${SECRET_KEY:-development_secret_key_change_in_production}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      DEBUG: "true"
+      ENVIRONMENT: "development"
+    ports:
+      - "8000:8000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./backend/app:/app/app
+
+volumes:
+  postgres_data:
