@@ -3,7 +3,7 @@ API v1 Router aggregating all endpoint sub-routers.
 """
 
 from fastapi import APIRouter
-from app.api.v1.endpoints import health, auth, profile, goals
+from app.api.v1.endpoints import health, auth, profile, goals, foods
 
 api_router = APIRouter()
 
@@ -18,3 +18,6 @@ api_router.include_router(profile.router, prefix="/profile", tags=["Profile"])
 
 # Nutrition Goal endpoints
 api_router.include_router(goals.router, prefix="/goals", tags=["Goals"])
+
+# Food catalog endpoints
+api_router.include_router(foods.router, prefix="/foods", tags=["Foods"])

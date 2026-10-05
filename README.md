@@ -99,16 +99,21 @@ Nutrino/
     │   │   └── handlers.py
     │   ├── models/             # SQLAlchemy ORM models
     │   │   ├── base.py
+    │   │   ├── food.py
     │   │   ├── goal.py
     │   │   ├── profile.py
     │   │   └── user.py
+    │   ├── nutrition/          # Deterministic nutrition calculator
+    │   │   └── calculator.py
     │   ├── schemas/            # Pydantic request/response schemas
     │   │   ├── auth.py
+    │   │   ├── food.py
     │   │   ├── goal.py
     │   │   ├── health.py
     │   │   ├── profile.py
     │   │   └── user.py
     │   └── services/           # Decoupled business logic & queries
+    │       ├── food_service.py
     │       ├── goal_service.py
     │       ├── profile_service.py
     │       └── user_service.py
@@ -116,8 +121,10 @@ Nutrino/
         ├── conftest.py
         ├── test_auth.py
         ├── test_database.py
+        ├── test_food.py
         ├── test_goals.py
         ├── test_health.py
+        ├── test_nutrition_calc.py
         └── test_profile.py
 ```
 
@@ -148,7 +155,7 @@ Nutrino/
   - `GET /api/v1/auth/me` protected endpoint
   - Alembic migration `7e37a9222572_create_users_table.py` applied
   - Automated tests covering registration, login, wrong password, duplicate emails, invalid data, expired/invalid tokens (20/20 passed)
-- [x] **Phase 3: User Context (Profile & Goals) (Current)**
+- [x] **Phase 3: User Context (Profile & Goals)**
   - SQLAlchemy 2.x `UserProfile` model (1:1 with `User`, cascade delete, PostgreSQL native `JSON` array storage for preferences/restrictions/ingredients)
   - SQLAlchemy 2.x `Goal` model (user objective, target calories, protein, carbs, fat, notes)
   - Pydantic v2 schemas for Profile (`UserProfileBase`, `UserProfileCreate`, `UserProfileUpdate`, `UserProfileResponse`) and Goal (`GoalType`, `GoalBase`, `GoalCreate`, `GoalUpdate`, `GoalResponse`)
@@ -158,7 +165,14 @@ Nutrino/
   - User isolation strictly enforced (only access and modify own context)
   - Alembic migration `85d04c028d5e_create_user_profiles_and_goals_tables.py` applied
   - Full automated tests covering profile and goal creation, updates, partial updates, validation, authentication, and user isolation (33/33 passed)
-- [ ] **Phase 4: Nutrition Data & Food Items**
+- [x] **Phase 4: Nutrition Data & Food Items (Current)**
+  - SQLAlchemy 2.x `FoodItem` model with PostgreSQL `NUMERIC(8, 2)` decimal precision, serving definition, categories, and 6 check constraints
+  - Decoupled deterministic `NutritionCalculator` service with dimension-safe unit conversions (gram/kg, ml/liter, culinary volumes, pieces/servings)
+  - Strict validation preventing unscientific dimension mixing (e.g. piece vs gram without explicit weight)
+  - Idempotent database seed script (`app.database.seed`) populating 20 common baseline foods (idli, dosa, sambar, dal, paneer, chicken, etc.) clearly documented as `INTERNAL_DEV_DATASET`
+  - Public read-only catalog endpoints: `GET /api/v1/foods/search?q={query}&category={category}` with relevance ranking, and `GET /api/v1/foods/{food_id}`
+  - Alembic migration `452b73097c65_create_food_items_table.py` applied
+  - Full automated test suite (53/53 tests passed)
 - [ ] **Phase 5: Meal System & Deterministic Aggregation**
 - [ ] **Phase 6: Local LLM Integration (Ollama + Qwen)**
 - [ ] **Phase 7: Controlled Agent Tools**

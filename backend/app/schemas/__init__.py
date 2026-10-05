@@ -16,6 +16,15 @@ from app.schemas.goal import (
     GoalUpdate,
     GoalResponse,
 )
+from app.schemas.food import (
+    FoodCategory,
+    FoodSource,
+    FoodItemBase,
+    FoodItemCreate,
+    FoodItemUpdate,
+    FoodItemResponse,
+    NutritionCalculationResult,
+)
 
 __all__ = [
     "HealthResponse",
@@ -37,4 +46,11 @@ __all__ = [
     "GoalCreate",
     "GoalUpdate",
     "GoalResponse",
+    "FoodCategory",
+    "FoodSource",
+    "FoodItemBase",
+    "FoodItemCreate",
+    "FoodItemUpdate",
+    "FoodItemResponse",
+    "NutritionCalculationResult",
 ]
