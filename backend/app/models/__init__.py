@@ -7,5 +7,15 @@ from app.models.user import User
 from app.models.profile import UserProfile
 from app.models.goal import Goal
 from app.models.food import FoodItem
+from app.models.meal import Meal, MealItem
 
-__all__ = ["Base", "TimestampMixin", "User", "UserProfile", "Goal", "FoodItem"]
+__all__ = [
+    "Base",
+    "TimestampMixin",
+    "User",
+    "UserProfile",
+    "Goal",
+    "FoodItem",
+    "Meal",
+    "MealItem",
+]

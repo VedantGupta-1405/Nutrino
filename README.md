@@ -85,11 +85,18 @@ Nutrino/
     │   │   └── v1/
     │   │       ├── api.py      # v1 router aggregator
     │   │       └── endpoints/
-    │   │           └── health.py # Health, liveness, and readiness probes
+    │   │           ├── auth.py
+    │   │           ├── food.py
+    │   │           ├── goals.py
+    │   │           ├── health.py
+    │   │           ├── meals.py    # Meal logging, retrieval, deletion
+    │   │           ├── nutrition.py# Daily & historical aggregation
+    │   │           └── profile.py
     │   ├── config/             # Pydantic Settings configuration
     │   │   └── settings.py
-    │   ├── database/           # Engine, sessions, Base model
+    │   ├── database/           # Engine, sessions, Base model, seeds
     │   │   ├── base.py
+    │   │   ├── seed.py
     │   │   └── session.py
     │   ├── auth/               # Security, password hashing, JWT, dependencies
     │   │   ├── dependencies.py
@@ -101,6 +108,7 @@ Nutrino/
     │   │   ├── base.py
     │   │   ├── food.py
     │   │   ├── goal.py
+    │   │   ├── meal.py         # Meal and MealItem models
     │   │   ├── profile.py
     │   │   └── user.py
     │   ├── nutrition/          # Deterministic nutrition calculator
@@ -110,11 +118,15 @@ Nutrino/
     │   │   ├── food.py
     │   │   ├── goal.py
     │   │   ├── health.py
+    │   │   ├── meal.py         # Meal & MealItem request/response schemas
+    │   │   ├── nutrition.py    # Daily & Historical nutrition schemas
     │   │   ├── profile.py
     │   │   └── user.py
     │   └── services/           # Decoupled business logic & queries
     │       ├── food_service.py
     │       ├── goal_service.py
+    │       ├── meal_service.py # Meal CRUD & atomic transactions
+    │       ├── nutrition_service.py # Aggregation & target comparison
     │       ├── profile_service.py
     │       └── user_service.py
     └── tests/                  # Pytest automated test suite
@@ -124,6 +136,9 @@ Nutrino/
         ├── test_food.py
         ├── test_goals.py
         ├── test_health.py
+        ├── test_historical_snapshot.py # Snapshot immutability tests
+        ├── test_meals.py               # Meal logging & transaction tests
+        ├── test_nutrition_agg.py       # Daily & historical aggregation tests
         ├── test_nutrition_calc.py
         └── test_profile.py
 ```
@@ -165,7 +180,7 @@ Nutrino/
   - User isolation strictly enforced (only access and modify own context)
   - Alembic migration `85d04c028d5e_create_user_profiles_and_goals_tables.py` applied
   - Full automated tests covering profile and goal creation, updates, partial updates, validation, authentication, and user isolation (33/33 passed)
-- [x] **Phase 4: Nutrition Data & Food Items (Current)**
+- [x] **Phase 4: Nutrition Data & Food Items**
   - SQLAlchemy 2.x `FoodItem` model with PostgreSQL `NUMERIC(8, 2)` decimal precision, serving definition, categories, and 6 check constraints
   - Decoupled deterministic `NutritionCalculator` service with dimension-safe unit conversions (gram/kg, ml/liter, culinary volumes, pieces/servings)
   - Strict validation preventing unscientific dimension mixing (e.g. piece vs gram without explicit weight)
@@ -173,7 +188,17 @@ Nutrino/
   - Public read-only catalog endpoints: `GET /api/v1/foods/search?q={query}&category={category}` with relevance ranking, and `GET /api/v1/foods/{food_id}`
   - Alembic migration `452b73097c65_create_food_items_table.py` applied
   - Full automated test suite (53/53 tests passed)
-- [ ] **Phase 5: Meal System & Deterministic Aggregation**
+- [x] **Phase 5: Meal System & Deterministic Aggregation (Current)**
+  - SQLAlchemy 2.x `Meal` and `MealItem` models with cascade deletion and indexing (`user_id, consumed_at`)
+  - Historical Nutrition Snapshot architecture: `MealItem` preserves immutable calculated calories and macronutrients captured at logging time
+  - Fully atomic meal creation: in-memory pre-validation of all items, unit compatibility checks via `NutritionCalculator`, and complete transaction rollback on any invalid item
+  - Decoupled `MealService` and `NutritionService` cleanly isolating business logic from endpoints
+  - Deterministic Daily Nutrition aggregation comparing consumed macros against active user `Goal` targets with non-negative remaining targets: `remaining = max(0, target - consumed)`
+  - Safe zero-meal response returning 200 OK with zero totals rather than 404
+  - Historical nutrition aggregation endpoint bounded to a maximum 31-day range
+  - Endpoints: `POST /api/v1/meals`, `GET /api/v1/meals`, `GET /api/v1/meals/today`, `GET /api/v1/meals/{meal_id}`, `DELETE /api/v1/meals/{meal_id}`, `GET /api/v1/nutrition/today`, `GET /api/v1/nutrition`, `GET /api/v1/nutrition/history`
+  - Alembic migration `092cbe7f6fec_create_meals_and_meal_items_tables.py` applied
+  - Comprehensive test suite (71/71 tests passing) including historical snapshot immutability, atomic rollbacks, user isolation, and target calculations
 - [ ] **Phase 6: Local LLM Integration (Ollama + Qwen)**
 - [ ] **Phase 7: Controlled Agent Tools**
 - [ ] **Phase 8: LangGraph Agent Orchestration**
@@ -184,7 +209,55 @@ Nutrino/
 
 ---
 
-## 5. Getting Started (Local Development)
+## 5. Domain Architecture: Phase 5 Meal System & Aggregation
+
+### Core Domain Flow & Architecture
+
+```mermaid
+flowchart TD
+    User([User]) -->|1:N| Meal[Meal\nmeal_type, consumed_at]
+    Meal -->|1:N| MealItem[MealItem\nquantity, unit]
+    MealItem -->|References| FoodItem[FoodItem Catalog\nserving size & basis macros]
+    FoodItem -->|Calculates at logging time| NutritionCalculator[NutritionCalculator]
+    NutritionCalculator -->|Writes Snapshot| MealItem
+    
+    subgraph Historical Immutability
+        MealItem -.->|Stores snapshot| Snapshot[calculated_calories\ncalculated_protein\ncalculated_carbohydrates\ncalculated_fat\ncalculated_fiber]
+    end
+
+    MealItem --> Aggregator[NutritionService Aggregator]
+    Goal[Active Goal\ntarget calories & macros] --> Aggregator
+    Aggregator --> DailyNutrition[Daily Nutrition Response\nconsumed, target, remaining, meals_count]
+```
+
+### Key Architectural Decisions
+
+#### 1. Nutrition Snapshot Immutability
+When a meal is logged, exact nutritional values are computed using `NutritionCalculator` and stored directly on `MealItem`:
+- `calculated_calories`, `calculated_protein`, `calculated_carbohydrates`, `calculated_fat`, `calculated_fiber` (PostgreSQL `NUMERIC(8, 2)`).
+- **Rationale**: If nutritional definitions in the `FoodItem` catalog are refined or updated in the future, past dietary history must remain factual and uncorrupted.
+
+#### 2. Atomic Transaction Integrity
+- When a user logs a multi-item meal, all referenced foods and measurement units are resolved and pre-validated against the food catalog in memory before any database write occurs.
+- If even a single item in the meal fails validation (e.g. invalid food ID, incompatible unit, non-positive quantity), the entire database transaction is rolled back. No partial meals are persisted.
+
+#### 3. Timezone Strategy
+- All timestamps (`consumed_at`, `created_at`, `updated_at`) are stored in UTC in PostgreSQL (`TIMESTAMP WITH TIME ZONE`).
+- The application interprets calendar day boundaries (`/today` and `?date=YYYY-MM-DD`) deterministically from midnight to end-of-day in UTC (`00:00:00.000000Z` to `23:59:59.999999Z`).
+- Future phases will allow user-defined profile timezones while keeping the database tier strictly in UTC.
+
+#### 4. Goal Comparison & Target Flooring
+- Consumed macronutrients are compared against active user goals.
+- Remaining targets are floored at zero: `remaining = max(Decimal('0.00'), target - consumed)`. Over-consumption never produces negative remaining targets.
+- Empty days return HTTP 200 with zero totals (`meals_count=0`, `0.00` macros), avoiding unnecessary 404 client errors.
+
+#### 5. User Isolation & Security
+- All queries, filters, and mutations are scoped to `user_id` extracted from the authenticated JWT.
+- Attempting to view or delete another user's meal yields HTTP 404 (authorization-safe, preventing resource enumeration).
+
+---
+
+## 6. Getting Started (Local Development)
 
 ### Prerequisites
 - Linux OS (recommended: Ubuntu / Debian / Fedora)
@@ -242,7 +315,7 @@ Access the interactive API documentation at:
 
 ---
 
-## 6. Running with Docker Compose
+## 7. Running with Docker Compose
 
 If using Docker:
 
@@ -256,7 +329,7 @@ This starts:
 
 ---
 
-## 7. Running Tests
+## 8. Running Tests
 
 Execute the automated test suite with pytest:
 
@@ -266,6 +339,6 @@ PYTHONPATH=backend pytest -v
 
 ---
 
-## 8. License
+## 9. License
 
 This project is licensed under the MIT License.

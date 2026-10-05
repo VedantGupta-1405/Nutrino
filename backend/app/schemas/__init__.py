@@ -25,6 +25,19 @@ from app.schemas.food import (
     FoodItemResponse,
     NutritionCalculationResult,
 )
+from app.schemas.meal import (
+    MealType,
+    NutritionTotals,
+    MealItemCreate,
+    MealCreate,
+    MealItemResponse,
+    MealResponse,
+)
+from app.schemas.nutrition import (
+    MacroTargets,
+    DailyNutritionResponse,
+    NutritionHistoryResponse,
+)
 
 __all__ = [
     "HealthResponse",
@@ -53,4 +66,13 @@ __all__ = [
     "FoodItemUpdate",
     "FoodItemResponse",
     "NutritionCalculationResult",
+    "MealType",
+    "NutritionTotals",
+    "MealItemCreate",
+    "MealCreate",
+    "MealItemResponse",
+    "MealResponse",
+    "MacroTargets",
+    "DailyNutritionResponse",
+    "NutritionHistoryResponse",
 ]
