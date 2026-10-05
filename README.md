@@ -99,18 +99,26 @@ Nutrino/
     │   │   └── handlers.py
     │   ├── models/             # SQLAlchemy ORM models
     │   │   ├── base.py
+    │   │   ├── goal.py
+    │   │   ├── profile.py
     │   │   └── user.py
     │   ├── schemas/            # Pydantic request/response schemas
     │   │   ├── auth.py
+    │   │   ├── goal.py
     │   │   ├── health.py
+    │   │   ├── profile.py
     │   │   └── user.py
     │   └── services/           # Decoupled business logic & queries
+    │       ├── goal_service.py
+    │       ├── profile_service.py
     │       └── user_service.py
     └── tests/                  # Pytest automated test suite
         ├── conftest.py
         ├── test_auth.py
         ├── test_database.py
-        └── test_health.py
+        ├── test_goals.py
+        ├── test_health.py
+        └── test_profile.py
 ```
 
 ---
@@ -128,7 +136,7 @@ Nutrino/
   - Health check endpoints (`/api/v1/health`, `/live`, `/ready`)
   - Docker & Docker Compose configuration
   - Unit and integration tests with pytest (100% pass)
-- [x] **Phase 2: Authentication & User Management (Current)**
+- [x] **Phase 2: Authentication & User Management**
   - SQLAlchemy 2.x `User` model with unique constraint, indexing, and timestamps
   - Pydantic v2 schemas (`UserCreate`, `UserResponse`, `UserLogin`, `Token`, `TokenPayload`)
   - Secure bcrypt password hashing with `passlib`
@@ -140,7 +148,16 @@ Nutrino/
   - `GET /api/v1/auth/me` protected endpoint
   - Alembic migration `7e37a9222572_create_users_table.py` applied
   - Automated tests covering registration, login, wrong password, duplicate emails, invalid data, expired/invalid tokens (20/20 passed)
-- [ ] **Phase 3: User Context (Profile & Goals)**
+- [x] **Phase 3: User Context (Profile & Goals) (Current)**
+  - SQLAlchemy 2.x `UserProfile` model (1:1 with `User`, cascade delete, PostgreSQL native `JSON` array storage for preferences/restrictions/ingredients)
+  - SQLAlchemy 2.x `Goal` model (user objective, target calories, protein, carbs, fat, notes)
+  - Pydantic v2 schemas for Profile (`UserProfileBase`, `UserProfileCreate`, `UserProfileUpdate`, `UserProfileResponse`) and Goal (`GoalType`, `GoalBase`, `GoalCreate`, `GoalUpdate`, `GoalResponse`)
+  - Decoupled `ProfileService` and `GoalService` with idempotent upsert operations
+  - `GET /api/v1/profile` & `PUT /api/v1/profile` endpoints
+  - `GET /api/v1/goals` & `PUT /api/v1/goals` endpoints
+  - User isolation strictly enforced (only access and modify own context)
+  - Alembic migration `85d04c028d5e_create_user_profiles_and_goals_tables.py` applied
+  - Full automated tests covering profile and goal creation, updates, partial updates, validation, authentication, and user isolation (33/33 passed)
 - [ ] **Phase 4: Nutrition Data & Food Items**
 - [ ] **Phase 5: Meal System & Deterministic Aggregation**
 - [ ] **Phase 6: Local LLM Integration (Ollama + Qwen)**

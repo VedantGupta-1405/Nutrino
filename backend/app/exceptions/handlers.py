@@ -5,6 +5,7 @@ Ensures consistent JSON error format and prevents internal stack traces from lea
 
 import logging
 from fastapi import FastAPI, Request, status
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from app.exceptions.base import AppException
@@ -26,7 +27,7 @@ def register_exception_handlers(app: FastAPI) -> None:
                 "error": {
                     "code": exc.error_code,
                     "message": exc.message,
-                    "details": exc.details,
+                    "details": jsonable_encoder(exc.details) if exc.details is not None else None,
                 }
             },
         )
@@ -40,7 +41,7 @@ def register_exception_handlers(app: FastAPI) -> None:
                 "error": {
                     "code": "VALIDATION_ERROR",
                     "message": "The request body or parameters failed validation.",
-                    "details": exc.errors(),
+                    "details": jsonable_encoder(exc.errors()),
                 }
             },
         )
