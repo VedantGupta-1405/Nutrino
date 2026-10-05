@@ -91,15 +91,24 @@ Nutrino/
     │   ├── database/           # Engine, sessions, Base model
     │   │   ├── base.py
     │   │   └── session.py
+    │   ├── auth/               # Security, password hashing, JWT, dependencies
+    │   │   ├── dependencies.py
+    │   │   └── security.py
     │   ├── exceptions/         # Centralized error handling
     │   │   ├── base.py
     │   │   └── handlers.py
     │   ├── models/             # SQLAlchemy ORM models
-    │   │   └── base.py
-    │   └── schemas/            # Pydantic request/response schemas
-    │       └── health.py
+    │   │   ├── base.py
+    │   │   └── user.py
+    │   ├── schemas/            # Pydantic request/response schemas
+    │   │   ├── auth.py
+    │   │   ├── health.py
+    │   │   └── user.py
+    │   └── services/           # Decoupled business logic & queries
+    │       └── user_service.py
     └── tests/                  # Pytest automated test suite
         ├── conftest.py
+        ├── test_auth.py
         ├── test_database.py
         └── test_health.py
 ```
@@ -108,7 +117,7 @@ Nutrino/
 
 ## 4. Current Implementation Status (Phases Roadmap)
 
-- [x] **Phase 1: Foundation (Current)**
+- [x] **Phase 1: Foundation**
   - Project directory structure and Git setup
   - FastAPI application with lifespan management and CORS middleware
   - Pydantic Settings environment configuration (`.env.example`, `.env`)
@@ -119,7 +128,18 @@ Nutrino/
   - Health check endpoints (`/api/v1/health`, `/live`, `/ready`)
   - Docker & Docker Compose configuration
   - Unit and integration tests with pytest (100% pass)
-- [ ] **Phase 2: Authentication & User Management**
+- [x] **Phase 2: Authentication & User Management (Current)**
+  - SQLAlchemy 2.x `User` model with unique constraint, indexing, and timestamps
+  - Pydantic v2 schemas (`UserCreate`, `UserResponse`, `UserLogin`, `Token`, `TokenPayload`)
+  - Secure bcrypt password hashing with `passlib`
+  - Cryptographic JWT access-token generation and decoding (`sub`, `iat`, `exp`)
+  - Decoupled `UserService` for user registration, duplicate email checks, and verification
+  - `POST /api/v1/auth/register` (201 Created)
+  - `POST /api/v1/auth/login` (200 OK)
+  - `get_current_user` FastAPI dependency resolving user from Bearer JWT
+  - `GET /api/v1/auth/me` protected endpoint
+  - Alembic migration `7e37a9222572_create_users_table.py` applied
+  - Automated tests covering registration, login, wrong password, duplicate emails, invalid data, expired/invalid tokens (20/20 passed)
 - [ ] **Phase 3: User Context (Profile & Goals)**
 - [ ] **Phase 4: Nutrition Data & Food Items**
 - [ ] **Phase 5: Meal System & Deterministic Aggregation**
