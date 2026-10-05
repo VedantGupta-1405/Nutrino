@@ -11,6 +11,7 @@ from app.api.v1.endpoints import (
     foods,
     meals,
     nutrition,
+    ai,
 )
 
 api_router = APIRouter()
@@ -35,3 +36,7 @@ api_router.include_router(meals.router, prefix="/meals", tags=["Meals"])
 
 # Nutrition aggregation endpoints
 api_router.include_router(nutrition.router, prefix="/nutrition", tags=["Nutrition"])
+
+# AI Development endpoints
+api_router.include_router(ai.router)
+

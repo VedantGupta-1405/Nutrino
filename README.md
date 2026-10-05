@@ -85,6 +85,7 @@ Nutrino/
     │   │   └── v1/
     │   │       ├── api.py      # v1 router aggregator
     │   │       └── endpoints/
+    │   │           ├── ai.py       # Development AI entity extraction endpoint
     │   │           ├── auth.py
     │   │           ├── food.py
     │   │           ├── goals.py
@@ -104,6 +105,12 @@ Nutrino/
     │   ├── exceptions/         # Centralized error handling
     │   │   ├── base.py
     │   │   └── handlers.py
+    │   ├── llm/                # Local LLM abstraction layer (Ollama + Qwen 3 8B)
+    │   │   ├── client.py       # Non-blocking async Ollama transport
+    │   │   ├── exceptions.py   # Connection, timeout, and parsing errors
+    │   │   ├── prompts.py      # Strict extraction prompts & schemas
+    │   │   ├── schemas.py      # Pydantic structured output models
+    │   │   └── service.py      # LLM inference & schema validation service
     │   ├── models/             # SQLAlchemy ORM models
     │   │   ├── base.py
     │   │   ├── food.py
@@ -131,6 +138,7 @@ Nutrino/
     │       └── user_service.py
     └── tests/                  # Pytest automated test suite
         ├── conftest.py
+        ├── test_ai_llm.py              # LLM extraction & error handling tests
         ├── test_auth.py
         ├── test_database.py
         ├── test_food.py
@@ -188,7 +196,7 @@ Nutrino/
   - Public read-only catalog endpoints: `GET /api/v1/foods/search?q={query}&category={category}` with relevance ranking, and `GET /api/v1/foods/{food_id}`
   - Alembic migration `452b73097c65_create_food_items_table.py` applied
   - Full automated test suite (53/53 tests passed)
-- [x] **Phase 5: Meal System & Deterministic Aggregation (Current)**
+- [x] **Phase 5: Meal System & Deterministic Aggregation**
   - SQLAlchemy 2.x `Meal` and `MealItem` models with cascade deletion and indexing (`user_id, consumed_at`)
   - Historical Nutrition Snapshot architecture: `MealItem` preserves immutable calculated calories and macronutrients captured at logging time
   - Fully atomic meal creation: in-memory pre-validation of all items, unit compatibility checks via `NutritionCalculator`, and complete transaction rollback on any invalid item
@@ -198,8 +206,17 @@ Nutrino/
   - Historical nutrition aggregation endpoint bounded to a maximum 31-day range
   - Endpoints: `POST /api/v1/meals`, `GET /api/v1/meals`, `GET /api/v1/meals/today`, `GET /api/v1/meals/{meal_id}`, `DELETE /api/v1/meals/{meal_id}`, `GET /api/v1/nutrition/today`, `GET /api/v1/nutrition`, `GET /api/v1/nutrition/history`
   - Alembic migration `092cbe7f6fec_create_meals_and_meal_items_tables.py` applied
-  - Comprehensive test suite (71/71 tests passing) including historical snapshot immutability, atomic rollbacks, user isolation, and target calculations
-- [ ] **Phase 6: Local LLM Integration (Ollama + Qwen)**
+  - Comprehensive test suite (71/71 tests passing)
+- [x] **Phase 6: Local LLM Integration (Ollama + Qwen 3 8B) (Current)**
+  - Isolated Local LLM abstraction (`app.llm`) decoupling Ollama communication from the REST API and database
+  - Local inference using `qwen3:8b` via Ollama (`0.35.1`+), accelerated on Vulkan discrete GPU / host CPU
+  - Dedicated non-blocking async `OllamaClient` with configurable timeout (`OLLAMA_TIMEOUT_SECONDS`), connection failure handling, and `think: False` control
+  - Pydantic v2 structured output schemas (`ExtractedMealItem`, `MealExtraction`) enforcing strict entity extraction
+  - Strict preservation of ambiguity: unspecified quantities or units remain `None`/`null` without fabricating data
+  - Independent development verification endpoint: `POST /api/v1/ai/extract-meal`
+  - Zero database mutations: AI extraction does NOT create meals, query tables, or calculate nutrition
+  - Offline-safe automated test suite mocking the Ollama boundary (14 tests)
+  - Full test suite: 85 passed, 0 failed
 - [ ] **Phase 7: Controlled Agent Tools**
 - [ ] **Phase 8: LangGraph Agent Orchestration**
 - [ ] **Phase 9: Contextual & Proactive Recommendations**
@@ -257,12 +274,116 @@ When a meal is logged, exact nutritional values are computed using `NutritionCal
 
 ---
 
-## 6. Getting Started (Local Development)
+## 6. Local LLM Layer: Phase 6 Ollama & Qwen 3 8B Integration
+
+### Overview & Architectural Boundary
+Phase 6 introduces a fully isolated Local LLM abstraction (`app.llm`) for natural language understanding and structured food entity extraction.
+
+```
+                    Natural Language Input
+                            │
+                            ▼
+             ┌─────────────────────────────┐
+             │       Local LLM Layer       │
+             │   (OllamaClient + Qwen 3)   │
+             └──────────────┬──────────────┘
+                            │ Validated via Pydantic
+                            ▼
+             ┌─────────────────────────────┐
+             │   Structured MealExtraction │
+             │  (food_name, qty, unit)     │
+             └──────────────┬──────────────┘
+                            │ (Future Phase 7 & 8 Agent Tools)
+                            ▼
+             ┌─────────────────────────────┐
+             │    Deterministic Domain     │
+             │     NutritionCalculator     │
+             └──────────────┬──────────────┘
+                            ▼
+                   PostgreSQL Database
+```
+
+#### Strict Architectural Guarantees:
+1. **Zero Database Access**: The LLM layer has no access to SQLAlchemy sessions or database models.
+2. **Zero Nutrition Fabrication**: The LLM never calculates, estimates, or invents calories or macronutrients.
+3. **Preservation of Ambiguity**: If a user says *"I had some rice and vegetables"*, the extractor sets `quantity: null` and `unit: null`. It never guesses or fabricates amounts.
+4. **Isolated Transport**: `OllamaClient` communicates asynchronously via Ollama's REST API (`/api/chat`) with `think: false` and enforced JSON formatting.
+
+### Model & Inference Configuration
+- **Model**: `qwen3:8b` (8.19B parameters, Q4_K_M quantization)
+- **Local Server**: Ollama `0.35.1`+
+- **Hardware Acceleration**: Automatically offloads 30 of 36 transformer layers to discrete GPU (e.g. NVIDIA RTX 4050 6 GB VRAM via Vulkan/CUDA) with remaining layers on CPU.
+
+#### Environment Variables
+```ini
+OLLAMA_BASE_URL="http://localhost:11434"
+OLLAMA_MODEL="qwen3:8b"
+OLLAMA_TIMEOUT_SECONDS=120.0
+```
+
+### Running and Verifying Ollama
+1. **Start Ollama Daemon**:
+   ```bash
+   ollama serve
+   ```
+2. **Verify Model is Available**:
+   ```bash
+   ollama list
+   # Output should display:
+   # NAME        ID              SIZE      MODIFIED
+   # qwen3:8b    500a1f067a9f    5.2 GB    ...
+   ```
+3. **Pull Model (if not present)**:
+   ```bash
+   ollama pull qwen3:8b
+   ```
+
+### Development Verification Endpoint
+A standalone testing endpoint is provided for verifying extraction without database mutations:
+`POST /api/v1/ai/extract-meal`
+
+#### Example Request:
+```bash
+curl -X POST http://localhost:8000/api/v1/ai/extract-meal \
+  -H "Content-Type: application/json" \
+  -d '{"text": "I had 2 idlis and a bowl of sambar for breakfast."}'
+```
+
+#### Example Response:
+```json
+{
+  "success": true,
+  "extraction": {
+    "meal_type": "BREAKFAST",
+    "items": [
+      {
+        "food_name": "idli",
+        "quantity": "2",
+        "unit": "piece",
+        "notes": null
+      },
+      {
+        "food_name": "sambar",
+        "quantity": "1",
+        "unit": "bowl",
+        "notes": null
+      }
+    ]
+  },
+  "model": "qwen3:8b"
+}
+```
+
+---
+
+## 7. Getting Started (Local Development)
 
 ### Prerequisites
 - Linux OS (recommended: Ubuntu / Debian / Fedora)
 - Python 3.12 (`pyenv` recommended)
 - PostgreSQL 16+ or Docker
+- Ollama 0.35+ with `qwen3:8b` model
+
 
 ### Step 1: Clone and Set Up Virtual Environment
 
@@ -315,7 +436,7 @@ Access the interactive API documentation at:
 
 ---
 
-## 7. Running with Docker Compose
+## 8. Running with Docker Compose
 
 If using Docker:
 
@@ -329,7 +450,7 @@ This starts:
 
 ---
 
-## 8. Running Tests
+## 9. Running Tests
 
 Execute the automated test suite with pytest:
 
@@ -339,6 +460,7 @@ PYTHONPATH=backend pytest -v
 
 ---
 
-## 9. License
+## 10. License
 
 This project is licensed under the MIT License.
+

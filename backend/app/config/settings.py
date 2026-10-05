@@ -48,7 +48,10 @@ class Settings(BaseSettings):
 
     # AI / Ollama
     OLLAMA_BASE_URL: str = "http://localhost:11434"
-    OLLAMA_MODEL: str = "qwen2.5:7b"
+    OLLAMA_MODEL: str = "qwen3:8b"
+    OLLAMA_TIMEOUT_SECONDS: float = 120.0
+
+
 
     # CORS
     BACKEND_CORS_ORIGINS: Union[List[str], str] = ["http://localhost:3000", "http://localhost:5173", "http://127.0.0.1:5173"]
