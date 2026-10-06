@@ -129,6 +129,15 @@ Nutrino/
     │   │   ├── nutrition.py    # Daily & Historical nutrition schemas
     │   │   ├── profile.py
     │   │   └── user.py
+    │   ├── tools/              # Controlled agent tools & registry (Phase 7)
+    │   │   ├── base.py         # BaseTool, ToolContext, and ToolResult
+    │   │   ├── food_tools.py   # Catalog search & food item lookup tools
+    │   │   ├── goal_tools.py   # User active goal retrieval tool
+    │   │   ├── meal_tools.py   # Meal creation, lookup, and deletion tools
+    │   │   ├── nutrition_tools.py # Daily & historical aggregation tools
+    │   │   ├── profile_tools.py# User dietary profile retrieval tool
+    │   │   ├── registry.py     # Central ToolRegistry for agent discovery
+    │   │   └── schemas.py      # Input/output schemas for tool parameters
     │   └── services/           # Decoupled business logic & queries
     │       ├── food_service.py
     │       ├── goal_service.py
@@ -148,7 +157,8 @@ Nutrino/
         ├── test_meals.py               # Meal logging & transaction tests
         ├── test_nutrition_agg.py       # Daily & historical aggregation tests
         ├── test_nutrition_calc.py
-        └── test_profile.py
+        ├── test_profile.py
+        └── test_tools.py               # Controlled tools, registry, and security tests
 ```
 
 ---
@@ -207,7 +217,7 @@ Nutrino/
   - Endpoints: `POST /api/v1/meals`, `GET /api/v1/meals`, `GET /api/v1/meals/today`, `GET /api/v1/meals/{meal_id}`, `DELETE /api/v1/meals/{meal_id}`, `GET /api/v1/nutrition/today`, `GET /api/v1/nutrition`, `GET /api/v1/nutrition/history`
   - Alembic migration `092cbe7f6fec_create_meals_and_meal_items_tables.py` applied
   - Comprehensive test suite (71/71 tests passing)
-- [x] **Phase 6: Local LLM Integration (Ollama + Qwen 3 8B) (Current)**
+- [x] **Phase 6: Local LLM Integration (Ollama + Qwen 3 8B)**
   - Isolated Local LLM abstraction (`app.llm`) decoupling Ollama communication from the REST API and database
   - Local inference using `qwen3:8b` via Ollama (`0.35.1`+), accelerated on Vulkan discrete GPU / host CPU
   - Dedicated non-blocking async `OllamaClient` with configurable timeout (`OLLAMA_TIMEOUT_SECONDS`), connection failure handling, and `think: False` control
@@ -217,7 +227,17 @@ Nutrino/
   - Zero database mutations: AI extraction does NOT create meals, query tables, or calculate nutrition
   - Offline-safe automated test suite mocking the Ollama boundary (14 tests)
   - Full test suite: 85 passed, 0 failed
-- [ ] **Phase 7: Controlled Agent Tools**
+- [x] **Phase 7: Controlled Agent Tools (Current)**
+  - Dedicated `app.tools` package providing safe, deterministic tool interfaces for the agent layer
+  - Base interface `BaseTool` with typed Pydantic input/output schemas, JSON schema generation, and `ToolContext`
+  - Strict user context derivation: all user-scoped tools derive `user_id` strictly from authenticated backend context, never from LLM inputs
+  - Reused existing application services (`FoodService`, `ProfileService`, `GoalService`, `MealService`, `NutritionService`) with zero duplicate business logic
+  - 11 registered tools across Food, Profile, Goal, Meal, and Nutrition domains
+  - Centralized `ToolRegistry` with tool discovery, schema reflection, and execution dispatch
+  - Zero direct database access or raw SQL execution from tools
+  - Deterministic nutrition calculations via `NutritionCalculator` and `NutritionService` preserved
+  - Unit and integration tests covering all 11 tools, registry dispatch, parameter validation, and user isolation (25 tests)
+  - Full test suite: 110 passed, 0 failed
 - [ ] **Phase 8: LangGraph Agent Orchestration**
 - [ ] **Phase 9: Contextual & Proactive Recommendations**
 - [ ] **Phase 10: React Frontend Dashboard**
@@ -376,7 +396,69 @@ curl -X POST http://localhost:8000/api/v1/ai/extract-meal \
 
 ---
 
-## 7. Getting Started (Local Development)
+## 7. Controlled Agent Tools & Registry (Phase 7)
+
+### Overview & Security Boundary
+Phase 7 establishes the safe, deterministic tool interface between the future AI agent (LangGraph in Phase 8) and backend application services.
+
+```
+                    Natural Language
+                           │
+                           ▼
+                    Qwen 3 8B / Ollama
+                           │
+                           ▼
+                  Future Agent Layer (Phase 8)
+                           │
+                           ▼
+                    Controlled Tools (Phase 7)
+                           │
+             ┌─────────────┼─────────────┐
+             ▼             ▼             ▼
+          Food Tools   User Tools    Meal Tools
+             │             │             │
+             └─────────────┼─────────────┘
+                           ▼
+                    Existing Services
+                           │
+                           ▼
+                  Deterministic Domain
+                    NutritionCalculator
+                           │
+                           ▼
+                       PostgreSQL
+```
+
+### Critical Architectural Guarantees:
+1. **User Identity from Authentication Only**: User-scoped tools derive the `user_id` strictly from `ToolContext.user_id` (injected via backend authentication), never from arguments passed by the LLM or caller.
+2. **Zero Direct Database Access**: Tools do not run queries, execute SQL, or mutate tables directly. All operations adapt existing services (`FoodService`, `ProfileService`, `GoalService`, `MealService`, `NutritionService`).
+3. **Deterministic Nutrition Calculations**: Meal creation and daily aggregation tools rely strictly on `NutritionCalculator` and `NutritionService`. The LLM never calculates calories or macronutrients.
+4. **No Arbitrary Code or SQL Execution**: No generic command execution, HTTP requests, or raw SQL capabilities are exposed.
+
+### Controlled Tools (11 Registered Tools)
+| Domain | Tool Name | Description | Requires Auth |
+| :--- | :--- | :--- | :--- |
+| **Food** | `search_foods` | Search authoritative food catalog by keyword/category | No |
+| **Food** | `get_food` | Retrieve food catalog entry and nutritional baseline by ID | No |
+| **Profile** | `get_user_profile` | Retrieve authenticated user's dietary preferences, allergies, and metrics | Yes |
+| **Goal** | `get_active_goal` | Retrieve authenticated user's active calorie and macronutrient targets | Yes |
+| **Meals** | `create_meal` | Create a meal with food IDs, quantities, and units (calculates snapshots) | Yes |
+| **Meals** | `get_today_meals` | Retrieve all meals consumed by the authenticated user today (UTC) | Yes |
+| **Meals** | `get_meal` | Retrieve a specific meal by ID (enforces user ownership) | Yes |
+| **Meals** | `delete_meal` | Delete a specific meal by ID (enforces user ownership) | Yes |
+| **Nutrition** | `get_today_nutrition` | Retrieve today's aggregated intake, active goal targets, and remaining budget | Yes |
+| **Nutrition** | `get_nutrition` | Retrieve aggregated intake, targets, and remaining budget for a specific date | Yes |
+| **Nutrition** | `get_nutrition_history` | Retrieve daily aggregated history across a date range (max 31 days) | Yes |
+
+### ToolRegistry & Agent Schema Discovery
+`ToolRegistry` provides centralized discovery and invocation:
+- `tool_registry.list_tools()`: Lists all registered tool identifiers.
+- `tool_registry.get_tool_metadata()`: Emits standard JSON Schema parameter specifications ready for LLM tool binding.
+- `tool_registry.execute(name, arguments, context)`: Validates input schemas using Pydantic, checks authentication, and executes within `ToolContext`.
+
+---
+
+## 8. Getting Started (Local Development)
 
 ### Prerequisites
 - Linux OS (recommended: Ubuntu / Debian / Fedora)
@@ -436,7 +518,7 @@ Access the interactive API documentation at:
 
 ---
 
-## 8. Running with Docker Compose
+## 9. Running with Docker Compose
 
 If using Docker:
 
@@ -450,7 +532,7 @@ This starts:
 
 ---
 
-## 9. Running Tests
+## 10. Running Tests
 
 Execute the automated test suite with pytest:
 
@@ -460,7 +542,8 @@ PYTHONPATH=backend pytest -v
 
 ---
 
-## 10. License
+## 11. License
 
 This project is licensed under the MIT License.
+
 
