@@ -71,6 +71,19 @@ Nutrino/
 ├── docker-compose.yml          # PostgreSQL & Backend multi-container setup
 ├── README.md                   # Project documentation
 ├── alembic.ini                 # Root Alembic configuration
+├── frontend/                   # Commercial-grade React + Vite frontend (Phase 10)
+│   ├── index.html
+│   ├── package.json
+│   ├── vite.config.js
+│   ├── tailwind.config.js
+│   └── src/
+│       ├── api/                # Modular Axios API clients (auth, meals, nutrition, etc.)
+│       ├── components/         # Reusable design system (Button, Card, Modal, States)
+│       ├── context/            # AuthContext session management & token sync
+│       ├── layouts/            # AppLayout (Sidebar, Drawer) & PublicLayout
+│       ├── pages/              # Dashboard, Meals, Nutrition, Recommendations, Assistant, etc.
+│       ├── routes/             # AppRoutes with protected route guards
+│       └── test/               # Vitest component & page unit tests
 └── backend/
     ├── Dockerfile              # Production-grade Python 3.12 container
     ├── requirements.txt        # Pinned dependencies
@@ -699,16 +712,80 @@ The controlled tool layer has been expanded from 11 to **12 registered tools**:
 
 ---
 
-## 10. Getting Started (Local Development)
+## 10. Phase 10 — Professional Web Application (Frontend)
+
+Nutrino includes a commercial-grade, light-first frontend built for health-tech SaaS applications. The frontend strictly consumes authoritative backend APIs without performing client-side nutrition calculations.
+
+### Technology Stack
+- **Framework & Tooling**: React 18, Vite 6, JavaScript (ES2022)
+- **Styling**: Vanilla Tailwind CSS with custom design tokens (`emerald-600` primary accents, `slate-50`/`white` neutral surfaces, custom elevation shadows)
+- **Data Fetching & State**: TanStack React Query v5 for server cache & state synchronization, Axios with centralized JWT auth interceptor
+- **Routing**: React Router v7 with protected routes and redirection guards
+- **Visualizations**: Recharts (responsive calorie bar charts, macronutrient calorie donut charts, protein trend lines)
+- **Icons**: Lucide React (consistent, restrained, professional icon library)
+- **Strict Visual Requirement**: **Zero emojis** anywhere in the user interface (all visual affordances use professional typography, cards, badges, and Lucide vector icons).
+
+### Application Screens & Features
+1. **Public Landing Page (`/`)**:
+   - Modern hero section with value proposition: *"Personalized nutrition tracking and meal guidance"*.
+   - Feature preview cards: Nutrition tracking, personalized recommendations, AI assistant, goal tracking.
+   - Primary and secondary CTAs leading directly into sign-in or registration flows.
+2. **Authentication Flow (`/login`, `/register`)**:
+   - Secure login and registration with instant client feedback and server validation.
+   - Automatic JWT storage, user profile caching, and session auto-restoration.
+   - Unauthenticated route protection and 401 interceptor redirection.
+3. **Executive Dashboard (`/dashboard`)**:
+   - Personalized time-aware greeting (*"Good morning / afternoon / evening, [Name]"*).
+   - Calorie intake circular progress indicator with remaining budget indicator.
+   - Macronutrient breakdown cards (Protein, Carbohydrates, Fat) with individual target progress bars.
+   - Chronological meal timeline with calorie summaries and quick detail inspection.
+   - Daily personalized recommendation card and quick-action shortcuts.
+4. **Meal Tracking & History (`/meals`)**:
+   - Comprehensive chronological meal log with macro totals, timestamps, and food items.
+   - Natural-language meal logging modal (*"What did you eat?"*) powered by the backend AI agent (`POST /api/v1/agent/chat`).
+   - Meal item inspection and meal deletion with instant server cache invalidation.
+5. **Nutrition Analytics (`/nutrition`)**:
+   - Today's full intake breakdown (calories, protein, carbohydrates, dietary fat, fiber).
+   - Recharts 7-day calorie intake comparison against daily target.
+   - Interactive macronutrient calorie distribution donut chart (4 kcal/g protein, 4 kcal/g carbs, 9 kcal/g fat).
+   - Multi-day protein intake trend chart.
+6. **Recommendations Studio (`/recommendations`)**:
+   - Conversational and query-based meal suggestion tool (`POST /api/v1/recommendations`).
+   - Quick-query suggestion chips (*"Suggest a high-protein vegetarian dinner"*, *"What should I eat if I have 600 calories left?"*).
+   - Structured recommendation breakdown: food ingredients, portions, calories, macros, and clinical reasoning.
+7. **Embedded AI Assistant (`/assistant`)**:
+   - Purpose-built nutrition copilot integrated within the Nutrino shell (not a generic chatbot clone).
+   - Session conversation history with message bubbles, action status, and suggested prompt starters.
+8. **Goal Configuration (`/goals`)**:
+   - Active goal tracking across multiple targets: *Weight Loss*, *Muscle Gain*, *Maintenance*, *General Health*.
+   - Target configuration for daily calories, protein, carbohydrates, and fat.
+9. **User Health Profile (`/profile`)**:
+   - Anthropometric details (age, height, weight, activity level).
+   - Dietary preferences (vegetarian, vegan, non-vegetarian, etc.).
+   - Allergies, disliked foods, daily budget, and available pantry ingredients.
+
+### Design System & Component Library
+The UI is built with atomic, reusable components in `frontend/src/components/common/`:
+- `Button`: Primary, secondary, outline, ghost, danger with loading spinner states.
+- `Card`, `CardHeader`, `CardTitle`, `CardDescription`, `CardContent`, `CardFooter`.
+- `Input`, `Select`, `Textarea`: Accessible form controls with integrated labels and error feedback.
+- `Badge`: Status badges (default, emerald, blue, amber, rose, neutral).
+- `ProgressIndicator`: Accessible progress bars and circular progress rings.
+- `Modal`: Accessible dialogs with escape/backdrop dismissal.
+- `LoadingState`, `EmptyState`, `ErrorState`: Consistent feedback components with retry triggers.
+
+---
+
+## 11. Getting Started (Local Development)
 
 ### Prerequisites
 - Linux OS (recommended: Ubuntu / Debian / Fedora)
 - Python 3.12 (`pyenv` recommended)
+- Node.js 18+ & npm 9+
 - PostgreSQL 16+ or Docker
 - Ollama 0.35+ with `qwen3:8b` model
 
-
-### Step 1: Clone and Set Up Virtual Environment
+### Step 1: Backend Setup
 
 ```bash
 git clone <repo-url> Nutrino
@@ -746,20 +823,31 @@ SECRET_KEY=replace_with_a_secure_random_key_in_production
 PYTHONPATH=backend alembic upgrade head
 ```
 
-### Step 4: Run the Development Server
+### Step 4: Run the Backend API
 
 ```bash
-PYTHONPATH=backend uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+PYTHONPATH=backend uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
 Access the interactive API documentation at:
-- **Swagger UI**: [http://localhost:8000/api/v1/docs](http://localhost:8000/api/v1/docs)
-- **ReDoc**: [http://localhost:8000/api/v1/redoc](http://localhost:8000/api/v1/redoc)
-- **Health Check**: [http://localhost:8000/api/v1/health](http://localhost:8000/api/v1/health)
+- **Swagger UI**: [http://127.0.0.1:8000/api/v1/docs](http://127.0.0.1:8000/api/v1/docs)
+- **Health Check**: [http://127.0.0.1:8000/api/v1/health](http://127.0.0.1:8000/api/v1/health)
+
+### Step 5: Frontend Setup & Development Server
+
+In a separate terminal:
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+The frontend application will start at:
+- **Web Application**: [http://127.0.0.1:5173](http://127.0.0.1:5173)
 
 ---
 
-## 11. Running with Docker Compose
+## 12. Running with Docker Compose
 
 If using Docker:
 
@@ -773,18 +861,35 @@ This starts:
 
 ---
 
-## 12. Running Tests
+## 13. Running Tests
 
-Execute the automated test suite with pytest (153 unit, integration, and security tests across all 9 phases):
+### Backend Automated Test Suite
+Execute the backend test suite with pytest (153 unit, integration, and security tests across all 9 phases):
 
 ```bash
 PYTHONPATH=backend pytest -v
 ```
 
+### Frontend Automated Test Suite
+Execute the frontend test suite with Vitest (20 component and page tests):
+
+```bash
+cd frontend
+npm test
+```
+
+### Frontend Production Build Verification
+
+```bash
+cd frontend
+npm run build
+```
+
 ---
 
-## 13. License
+## 14. License
 
 This project is licensed under the MIT License.
+
 
 
