@@ -12,6 +12,7 @@ from app.api.v1.endpoints import (
     meals,
     nutrition,
     ai,
+    agent,
 )
 
 api_router = APIRouter()
@@ -39,4 +40,7 @@ api_router.include_router(nutrition.router, prefix="/nutrition", tags=["Nutritio
 
 # AI Development endpoints
 api_router.include_router(ai.router)
+
+# AI Agent endpoints (Phase 8)
+api_router.include_router(agent.router)
 

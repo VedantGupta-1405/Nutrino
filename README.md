@@ -85,6 +85,7 @@ Nutrino/
     │   │   └── v1/
     │   │       ├── api.py      # v1 router aggregator
     │   │       └── endpoints/
+    │   │           ├── agent.py    # Agent conversational chat endpoint (Phase 8)
     │   │           ├── ai.py       # Development AI entity extraction endpoint
     │   │           ├── auth.py
     │   │           ├── food.py
@@ -93,6 +94,15 @@ Nutrino/
     │   │           ├── meals.py    # Meal logging, retrieval, deletion
     │   │           ├── nutrition.py# Daily & historical aggregation
     │   │           └── profile.py
+    │   ├── agent/              # LangGraph Agent Orchestration (Phase 8)
+    │   │   ├── __init__.py     # Package exports
+    │   │   ├── graph.py        # Compiled LangGraph StateGraph
+    │   │   ├── nodes.py        # agent_node, tool_execution_node, should_continue
+    │   │   ├── prompts.py      # Dedicated system prompt & structured schemas
+    │   │   ├── runtime.py      # Non-serializable AgentRuntimeContext
+    │   │   ├── schemas.py      # Agent chat request/response models
+    │   │   ├── service.py      # AgentService execution coordinator
+    │   │   └── state.py        # Explicit typed AgentState definition
     │   ├── config/             # Pydantic Settings configuration
     │   │   └── settings.py
     │   ├── database/           # Engine, sessions, Base model, seeds
@@ -227,7 +237,7 @@ Nutrino/
   - Zero database mutations: AI extraction does NOT create meals, query tables, or calculate nutrition
   - Offline-safe automated test suite mocking the Ollama boundary (14 tests)
   - Full test suite: 85 passed, 0 failed
-- [x] **Phase 7: Controlled Agent Tools (Current)**
+- [x] **Phase 7: Controlled Agent Tools**
   - Dedicated `app.tools` package providing safe, deterministic tool interfaces for the agent layer
   - Base interface `BaseTool` with typed Pydantic input/output schemas, JSON schema generation, and `ToolContext`
   - Strict user context derivation: all user-scoped tools derive `user_id` strictly from authenticated backend context, never from LLM inputs
@@ -238,7 +248,17 @@ Nutrino/
   - Deterministic nutrition calculations via `NutritionCalculator` and `NutritionService` preserved
   - Unit and integration tests covering all 11 tools, registry dispatch, parameter validation, and user isolation (25 tests)
   - Full test suite: 110 passed, 0 failed
-- [ ] **Phase 8: LangGraph Agent Orchestration**
+- [x] **Phase 8: LangGraph Agent Orchestration (Current)**
+  - Dedicated `app.agent` package providing isolated LangGraph agent orchestration
+  - Explicit typed `AgentState` containing message history, tool calls, tool results, and iteration counts
+  - Decoupled `AgentRuntimeContext` holding non-serializable DB session, user model, and `ToolContext` (never exposed to LLM or state)
+  - Graph topology: `agent_node` <-> `tool_execution_node` with conditional `should_continue` routing
+  - Bounded iteration limit (`MAX_AGENT_ITERATIONS = 6`) preventing infinite reasoning loops
+  - Dedicated system prompt enforcing zero-fabrication of nutrition numbers/IDs, ambiguous quantity clarification, and food catalog resolution
+  - Controlled tool execution boundary executing exclusively against registered tools in `ToolRegistry`
+  - Conversational REST API: `POST /api/v1/agent/chat` protected by JWT authentication
+  - 21 comprehensive agent tests covering read flows, meal logging, ambiguous quantity, user isolation, iteration limits, error codes (503/504/422)
+  - Total test suite: 131 passed, 0 failed
 - [ ] **Phase 9: Contextual & Proactive Recommendations**
 - [ ] **Phase 10: React Frontend Dashboard**
 - [ ] **Phase 11: End-to-End Evaluation & Testing**
@@ -458,7 +478,132 @@ Phase 7 establishes the safe, deterministic tool interface between the future AI
 
 ---
 
-## 8. Getting Started (Local Development)
+## 8. LangGraph Agent Orchestration (Phase 8)
+
+### Target Architecture
+
+Phase 8 introduces the first real **LangGraph-based nutrition agent**. The agent receives natural-language input, reasons over user context, invokes controlled backend application tools deterministically, and produces grounded, concise answers.
+
+```text
+User Request
+     ↓
+FastAPI (POST /api/v1/agent/chat)
+     ↓
+JWT Authentication (Authenticated User)
+     ↓
+Agent Runtime Context (db, user, ToolContext)
+     ↓
+LangGraph StateGraph
+     ↓
+Qwen 3 8B (via Ollama)
+     ↓
+Tool Selection (Structured JSON)
+     ↓
+Controlled ToolRegistry (11 Tools)
+     ↓
+Existing Application Services
+     ↓
+PostgreSQL
+     ↓
+Deterministic Tool Result
+     ↓
+LangGraph Agent Node
+     ↓
+Qwen 3 8B (Synthesis)
+     ↓
+Final User Response
+```
+
+### Critical Architectural Guarantees:
+1. **The LLM Never Accesses the Database Directly**: The model cannot construct SQL, inspect schemas, or directly query PostgreSQL.
+2. **The LLM Never Calculates Nutrition**: Nutrition numbers are calculated deterministically by `NutritionCalculator` and stored during meal creation snapshots. The agent quotes values strictly from backend tool results.
+3. **User Isolation Enforced at Runtime**: The authenticated `user_id` is supplied exclusively by the FastAPI JWT authentication layer via `AgentRuntimeContext`. The LLM cannot spoof or override the user identity.
+4. **No Database Sessions in Graph State**: Graph state contains only serializable data (`messages`, `tool_calls`, `tool_results`, `iteration_count`). Database connections live strictly in the runtime context.
+5. **Bounded Reasoning Iterations**: Execution is strictly capped at `MAX_AGENT_ITERATIONS = 6` to prevent infinite reasoning or tool invocation loops.
+
+### Agent State (`AgentState`)
+Typed state managed by LangGraph during reasoning:
+```python
+class AgentState(TypedDict):
+    user_message: str
+    authenticated_user_id: int
+    messages: List[Dict[str, Any]]
+    tool_calls: List[Dict[str, Any]]
+    tool_results: List[Dict[str, Any]]
+    final_response: Optional[str]
+    iteration_count: int
+    tools_used: List[str]
+```
+
+### Runtime Context (`AgentRuntimeContext`)
+Injected dynamically via LangGraph's `RunnableConfig` (`configurable={"runtime_context": ctx}`):
+```python
+class AgentRuntimeContext:
+    db: Session
+    user: User
+    tool_context: ToolContext
+    client: OllamaClient
+```
+
+### Graph Execution Topology
+```text
+START
+  ↓
+agent_node  <───────────────────────────┐
+  ↓                                     │
+should_continue?                        │
+  ├── Has final_response or hit max? ───┼──> END
+  │                                     │
+  └── Has pending tool_calls? ──────────┘
+        ↓
+    tool_execution_node
+```
+
+### Agent Chat API Endpoint
+
+#### `POST /api/v1/agent/chat`
+Protected by JWT authentication (`Authorization: Bearer <token>`).
+
+**Request Body**:
+```json
+{
+  "message": "I had 2 idlis and a bowl of sambar for breakfast."
+}
+```
+
+**Response Body**:
+```json
+{
+  "response": "Your breakfast has been logged successfully. You consumed 2 idlis and 1 bowl of sambar. The total intake for breakfast is 116.80 calories, 3.23g protein, 24.12g carbohydrates, 0.42g fat, and 1.62g fiber.",
+  "tools_used": [
+    "search_foods",
+    "create_meal"
+  ]
+}
+```
+
+### Core Conversational Capabilities & Examples
+
+| Intent | User Message | Tools Invoked | Behavior |
+| :--- | :--- | :--- | :--- |
+| **Nutrition Lookup** | *"How many calories have I eaten today?"* | `get_today_nutrition` | Retrieves today's intake and reports exact calorie totals. |
+| **Goal Inspection** | *"What is my current goal?"* | `get_active_goal` | Returns active goal target calories and macronutrients, or advises if none set. |
+| **Food Discovery** | *"How much nutrition does idli have?"* | `search_foods`, `get_food` | Discovers food item in catalog and quotes authoritative serving data. |
+| **Meal Logging** | *"I had 2 idlis and a bowl of sambar for breakfast."* | `search_foods`, `create_meal` | Resolves catalog IDs, creates meal atomically, and summarizes intake. |
+| **Ambiguous Quantity** | *"I had some rice."* | None | Refuses to fabricate quantity; asks user for specific portion (e.g. 1 cup, 150g). |
+| **Preference Only** | *"I like pizza."* | None | Recognizes preference; does NOT log a meal. |
+| **User Isolation** | *"Get details of meal 99"* | `get_meal` | Raises controlled not found error if meal belongs to another user. |
+
+### Error Handling
+- **Ollama Offline**: Returns HTTP `503 Service Unavailable`.
+- **Ollama Timeout**: Returns HTTP `504 Gateway Timeout`.
+- **Empty Message**: Returns HTTP `422 Unprocessable Content`.
+- **Iteration Limit Exceeded**: Returns graceful message prompting user to simplify request.
+- **Controlled Tool Error**: Dispatched safely to model as error context; agent informs user honestly.
+
+---
+
+## 9. Getting Started (Local Development)
 
 ### Prerequisites
 - Linux OS (recommended: Ubuntu / Debian / Fedora)
@@ -518,7 +663,7 @@ Access the interactive API documentation at:
 
 ---
 
-## 9. Running with Docker Compose
+## 10. Running with Docker Compose
 
 If using Docker:
 
@@ -532,7 +677,7 @@ This starts:
 
 ---
 
-## 10. Running Tests
+## 11. Running Tests
 
 Execute the automated test suite with pytest:
 
@@ -542,7 +687,7 @@ PYTHONPATH=backend pytest -v
 
 ---
 
-## 11. License
+## 12. License
 
 This project is licensed under the MIT License.
 
