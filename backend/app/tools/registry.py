@@ -21,6 +21,7 @@ from app.tools.nutrition_tools import (
     GetTodayNutritionTool,
 )
 from app.tools.profile_tools import GetUserProfileTool
+from app.tools.recommend_tools import RecommendMealTool
 
 
 class ToolRegistry:
@@ -97,6 +98,9 @@ def create_default_registry() -> ToolRegistry:
     registry.register(GetTodayNutritionTool())
     registry.register(GetNutritionTool())
     registry.register(GetNutritionHistoryTool())
+
+    # 5. Recommendation Tools (Phase 9)
+    registry.register(RecommendMealTool())
 
     return registry
 

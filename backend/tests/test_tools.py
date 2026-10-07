@@ -74,7 +74,7 @@ def create_test_user(db: Session, prefix: str = "tooluser", is_active: bool = Tr
 # ==============================================================================
 
 def test_registry_contains_all_eleven_tools():
-    """Verify registry has exactly the 11 expected controlled tools."""
+    """Verify registry has all expected controlled tools."""
     expected_tools = {
         "search_foods",
         "get_food",
@@ -87,16 +87,17 @@ def test_registry_contains_all_eleven_tools():
         "get_today_nutrition",
         "get_nutrition",
         "get_nutrition_history",
+        "recommend_meal",
     }
     registered = set(tool_registry.list_tools())
     assert expected_tools == registered
-    assert len(registered) == 11
+    assert len(registered) == 12
 
 
 def test_registry_get_metadata_schemas():
     """Verify metadata generation produces valid schema representations for agent orchestration."""
     metadata = tool_registry.get_tool_metadata()
-    assert len(metadata) == 11
+    assert len(metadata) == 12
     for meta in metadata:
         assert "name" in meta
         assert "description" in meta

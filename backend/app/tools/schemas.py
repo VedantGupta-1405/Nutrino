@@ -81,3 +81,13 @@ class GetNutritionHistoryInput(BaseModel):
     """Input parameter for retrieving historical nutrition aggregation."""
     start_date: dt.date = Field(..., description="Start date in YYYY-MM-DD format")
     end_date: dt.date = Field(..., description="End date in YYYY-MM-DD format")
+
+
+class RecommendMealInput(BaseModel):
+    """Input parameters for requesting a personalized meal recommendation."""
+    meal_type: Optional[str] = Field(default=None, description="Optional target meal type: BREAKFAST, LUNCH, DINNER, SNACK")
+    focus: Optional[str] = Field(default=None, description="Optional nutritional focus: high_protein, low_calorie, balanced, light")
+    target_calories: Optional[Decimal] = Field(default=None, ge=0, description="Optional target calorie budget for this meal")
+    ingredients: Optional[List[str]] = Field(default_factory=list, description="Optional ingredients user has or wants to use")
+    notes: Optional[str] = Field(default=None, description="Optional notes or context for the recommendation request")
+

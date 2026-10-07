@@ -18,6 +18,7 @@ from app.tools.nutrition_tools import (
     GetTodayNutritionTool,
 )
 from app.tools.profile_tools import GetUserProfileTool
+from app.tools.recommend_tools import RecommendMealTool
 from app.tools.registry import ToolRegistry, create_default_registry, tool_registry
 from app.tools.schemas import (
     CreateMealInput,
@@ -29,6 +30,7 @@ from app.tools.schemas import (
     GetNutritionForDateInput,
     GetNutritionHistoryInput,
     MealListResponse,
+    RecommendMealInput,
     SearchFoodsInput,
     SearchFoodsOutput,
 )
@@ -63,4 +65,6 @@ __all__ = [
     "MealListResponse",
     "GetNutritionForDateInput",
     "GetNutritionHistoryInput",
+    "RecommendMealTool",
+    "RecommendMealInput",
 ]

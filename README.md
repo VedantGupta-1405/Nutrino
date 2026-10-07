@@ -85,78 +85,87 @@ Nutrino/
     │   │   └── v1/
     │   │       ├── api.py      # v1 router aggregator
     │   │       └── endpoints/
-    │   │           ├── agent.py    # Agent conversational chat endpoint (Phase 8)
-    │   │           ├── ai.py       # Development AI entity extraction endpoint
+    │   │           ├── agent.py        # Agent conversational chat endpoint (Phase 8)
+    │   │           ├── ai.py           # Development AI entity extraction endpoint
     │   │           ├── auth.py
     │   │           ├── food.py
     │   │           ├── goals.py
     │   │           ├── health.py
-    │   │           ├── meals.py    # Meal logging, retrieval, deletion
-    │   │           ├── nutrition.py# Daily & historical aggregation
-    │   │           └── profile.py
-    │   ├── agent/              # LangGraph Agent Orchestration (Phase 8)
-    │   │   ├── __init__.py     # Package exports
-    │   │   ├── graph.py        # Compiled LangGraph StateGraph
-    │   │   ├── nodes.py        # agent_node, tool_execution_node, should_continue
-    │   │   ├── prompts.py      # Dedicated system prompt & structured schemas
-    │   │   ├── runtime.py      # Non-serializable AgentRuntimeContext
-    │   │   ├── schemas.py      # Agent chat request/response models
-    │   │   ├── service.py      # AgentService execution coordinator
-    │   │   └── state.py        # Explicit typed AgentState definition
-    │   ├── config/             # Pydantic Settings configuration
+    │   │           ├── meals.py        # Meal logging, retrieval, deletion
+    │   │           ├── nutrition.py    # Daily & historical aggregation
+    │   │           ├── profile.py
+    │   │           └── recommendations.py # Direct recommendations endpoint (Phase 9)
+    │   ├── agent/                  # LangGraph Agent Orchestration (Phase 8)
+    │   │   ├── __init__.py         # Package exports
+    │   │   ├── graph.py            # Compiled LangGraph StateGraph
+    │   │   ├── nodes.py            # agent_node, tool_execution_node, should_continue
+    │   │   ├── prompts.py          # Dedicated system prompt & structured schemas
+    │   │   ├── runtime.py          # Non-serializable AgentRuntimeContext
+    │   │   ├── schemas.py          # Agent chat request/response models
+    │   │   ├── service.py          # AgentService execution coordinator
+    │   │   └── state.py            # Explicit typed AgentState definition
+    │   ├── recommendations/        # Personalized Nutrition Recommendations (Phase 9)
+    │   │   ├── __init__.py         # Package exports
+    │   │   ├── constraints.py      # Deterministic dietary, allergy, & ranking filters
+    │   │   ├── prompts.py          # Recommendation system prompts
+    │   │   ├── schemas.py          # FoodCandidate, RecommendationContext schemas
+    │   │   └── service.py          # RecommendationService business logic
+    │   ├── config/                 # Pydantic Settings configuration
     │   │   └── settings.py
-    │   ├── database/           # Engine, sessions, Base model, seeds
+    │   ├── database/               # Engine, sessions, Base model, seeds
     │   │   ├── base.py
     │   │   ├── seed.py
     │   │   └── session.py
-    │   ├── auth/               # Security, password hashing, JWT, dependencies
+    │   ├── auth/                   # Security, password hashing, JWT, dependencies
     │   │   ├── dependencies.py
     │   │   └── security.py
-    │   ├── exceptions/         # Centralized error handling
+    │   ├── exceptions/             # Centralized error handling
     │   │   ├── base.py
     │   │   └── handlers.py
-    │   ├── llm/                # Local LLM abstraction layer (Ollama + Qwen 3 8B)
-    │   │   ├── client.py       # Non-blocking async Ollama transport
-    │   │   ├── exceptions.py   # Connection, timeout, and parsing errors
-    │   │   ├── prompts.py      # Strict extraction prompts & schemas
-    │   │   ├── schemas.py      # Pydantic structured output models
-    │   │   └── service.py      # LLM inference & schema validation service
-    │   ├── models/             # SQLAlchemy ORM models
+    │   ├── llm/                    # Local LLM abstraction layer (Ollama + Qwen 3 8B)
+    │   │   ├── client.py           # Non-blocking async Ollama transport
+    │   │   ├── exceptions.py       # Connection, timeout, and parsing errors
+    │   │   ├── prompts.py          # Strict extraction prompts & schemas
+    │   │   ├── schemas.py          # Pydantic structured output models
+    │   │   └── service.py          # LLM inference & schema validation service
+    │   ├── models/                 # SQLAlchemy ORM models
     │   │   ├── base.py
     │   │   ├── food.py
     │   │   ├── goal.py
-    │   │   ├── meal.py         # Meal and MealItem models
+    │   │   ├── meal.py             # Meal and MealItem models
     │   │   ├── profile.py
     │   │   └── user.py
-    │   ├── nutrition/          # Deterministic nutrition calculator
+    │   ├── nutrition/              # Deterministic nutrition calculator
     │   │   └── calculator.py
-    │   ├── schemas/            # Pydantic request/response schemas
+    │   ├── schemas/                # Pydantic request/response schemas
     │   │   ├── auth.py
     │   │   ├── food.py
     │   │   ├── goal.py
     │   │   ├── health.py
-    │   │   ├── meal.py         # Meal & MealItem request/response schemas
-    │   │   ├── nutrition.py    # Daily & Historical nutrition schemas
+    │   │   ├── meal.py             # Meal & MealItem request/response schemas
+    │   │   ├── nutrition.py        # Daily & Historical nutrition schemas
     │   │   ├── profile.py
     │   │   └── user.py
-    │   ├── tools/              # Controlled agent tools & registry (Phase 7)
-    │   │   ├── base.py         # BaseTool, ToolContext, and ToolResult
-    │   │   ├── food_tools.py   # Catalog search & food item lookup tools
-    │   │   ├── goal_tools.py   # User active goal retrieval tool
-    │   │   ├── meal_tools.py   # Meal creation, lookup, and deletion tools
-    │   │   ├── nutrition_tools.py # Daily & historical aggregation tools
-    │   │   ├── profile_tools.py# User dietary profile retrieval tool
-    │   │   ├── registry.py     # Central ToolRegistry for agent discovery
-    │   │   └── schemas.py      # Input/output schemas for tool parameters
-    │   └── services/           # Decoupled business logic & queries
+    │   ├── tools/                  # Controlled agent tools & registry (Phases 7 & 9)
+    │   │   ├── base.py             # BaseTool, ToolContext, and ToolResult
+    │   │   ├── food_tools.py       # Catalog search & food item lookup tools
+    │   │   ├── goal_tools.py       # User active goal retrieval tool
+    │   │   ├── meal_tools.py       # Meal creation, lookup, and deletion tools
+    │   │   ├── nutrition_tools.py  # Daily & historical aggregation tools
+    │   │   ├── profile_tools.py    # User dietary profile retrieval tool
+    │   │   ├── recommend_tools.py  # Controlled recommend_meal tool (Phase 9)
+    │   │   ├── registry.py         # Central ToolRegistry (12 registered tools)
+    │   │   └── schemas.py          # Input/output schemas for tool parameters
+    │   └── services/               # Decoupled business logic & queries
     │       ├── food_service.py
     │       ├── goal_service.py
-    │       ├── meal_service.py # Meal CRUD & atomic transactions
+    │       ├── meal_service.py     # Meal CRUD & atomic transactions
     │       ├── nutrition_service.py # Aggregation & target comparison
     │       ├── profile_service.py
     │       └── user_service.py
-    └── tests/                  # Pytest automated test suite
+    └── tests/                      # Pytest automated test suite (153 tests)
         ├── conftest.py
+        ├── test_agent.py               # LangGraph agent orchestration tests
         ├── test_ai_llm.py              # LLM extraction & error handling tests
         ├── test_auth.py
         ├── test_database.py
@@ -168,7 +177,8 @@ Nutrino/
         ├── test_nutrition_agg.py       # Daily & historical aggregation tests
         ├── test_nutrition_calc.py
         ├── test_profile.py
-        └── test_tools.py               # Controlled tools, registry, and security tests
+        ├── test_recommendations.py     # Personalized recommendation tests
+        └── test_tools.py               # Controlled tools & registry tests
 ```
 
 ---
@@ -603,7 +613,93 @@ Protected by JWT authentication (`Authorization: Bearer <token>`).
 
 ---
 
-## 9. Getting Started (Local Development)
+## 9. Personalized Nutrition Recommendations (Phase 9)
+
+Phase 9 introduces deterministic, personalized meal recommendation capabilities into Nutrino. Rather than relying on generic LLM advice or hallucinated recipes, recommendations are grounded entirely in real persistent user state, active goal targets, consumed daily nutrition, and database food items.
+
+### Recommendation Flow
+
+```mermaid
+flowchart TD
+    User([User Request]) --> Agent[LangGraph Agent]
+    Agent --> ToolCall[Tool: recommend_meal]
+    ToolCall --> ContextBuild[RecommendationService]
+    ContextBuild --> Profile[Retrieve UserProfile]
+    ContextBuild --> Goal[Retrieve Active Goal]
+    ContextBuild --> Nutrition[Retrieve Today's Nutrition]
+    ContextBuild --> DBFoods[(Retrieve FoodItem Catalog)]
+    Profile & Goal & Nutrition & DBFoods --> Constraints[Deterministic Constraints Engine]
+    Constraints --> DietaryFilter[Dietary Preference Filter: VEGETARIAN / VEGAN]
+    Constraints --> AllergyFilter[Allergy / Restriction Exclusion]
+    Constraints --> DislikeFilter[Disliked Foods Filter]
+    Constraints --> Ranking[Macro & Ingredient Ranking]
+    Ranking --> RecContext[Structured RecommendationContext]
+    RecContext --> Qwen[Qwen 3 8B via Ollama]
+    Qwen --> Response([Natural-Language Grounded Recommendation])
+```
+
+### Deterministic Constraints & Business Logic
+
+All constraints are enforced strictly in Python before the LLM generates any natural-language explanation:
+
+1. **Dietary Preferences**:
+   - `VEGETARIAN`: Eliminates poultry, fish, and meat items.
+   - `VEGAN`: Eliminates meat and all dairy products (milk, curd, paneer, butter, ghee).
+   - `NON_VEGETARIAN` / `OTHER`: Retains full catalog items.
+2. **Allergies & Restrictions**:
+   - Explicitly rejects foods matching or containing allergen keywords (e.g. *paneer*, *peanuts*, *dairy*, *gluten*).
+   - If safety cannot be deterministically verified, foods are excluded.
+3. **Disliked Foods**:
+   - Excludes foods listed in the user's disliked food preferences.
+4. **Available Ingredients**:
+   - Cross-references user pantry items with food ingredients/names, scoring matching items higher in candidate ranking.
+5. **Remaining Macronutrients**:
+   - Calculated with exact `Decimal` arithmetic:
+     $$\text{remaining\_calories} = \text{target\_calories} - \text{consumed\_calories}$$
+     $$\text{remaining\_protein} = \text{target\_protein} - \text{consumed\_protein}$$
+     $$\text{remaining\_carbs} = \text{target\_carbs} - \text{consumed\_carbs}$$
+     $$\text{remaining\_fat} = \text{target\_fat} - \text{consumed\_fat}$$
+6. **Pricing Limitation**:
+   - The current food dataset does not track monetary pricing.
+   - **Nutrino strictly refuses to invent prices or fake monetary limits.**
+   - Pricing limitations are explicitly noted in the recommendation context and communicated honestly to the user.
+
+### Role of Qwen 3 8B in Recommendations
+
+- **Allowed**: Selecting among valid database candidates, combining candidates into coherent meals, explaining why the suggestion fits the user's active goals and remaining calories, and formatting nutritional summaries using supplied database numbers.
+- **Strictly Prohibited**: Inventing food items, fabricating calories/macros, calculating deltas, altering database state, inventing prices, or pretending ingredients are in the user's pantry.
+
+### Critical Safety Rule: Recommendation $\neq$ Meal Logging
+
+Recommendations are strictly **read-only**:
+- Asking *"What should I eat for dinner?"* executes `recommend_meal` and creates **0 database rows**.
+- Explicit consumption statements (*"I ate 2 idlis and a bowl of sambar for breakfast."*) invoke `create_meal` through the existing meal-logging flow.
+- Recommendation logic never intercepts meal logging, and recommendation requests never mutate the database.
+
+### Supported Recommendation Types
+
+1. **General Meal Recommendations**: *"What should I eat for dinner?"*
+2. **Goal-Oriented / High-Protein Recommendations**: *"Suggest a high-protein vegetarian dinner."*
+3. **Remaining-Calorie Recommendations**: *"What should I eat if I have 600 calories left?"*
+4. **Ingredient-Based Recommendations**: *"I have rice, dal, onion, and tomato. What can I make?"*
+5. **Constraint-Based Recommendations**: *"I am allergic to paneer and vegetarian. What can I eat?"*
+
+### ToolRegistry Integration
+
+The controlled tool layer has been expanded from 11 to **12 registered tools**:
+- **Tool Name**: `recommend_meal`
+- **Authentication**: Requires authenticated user context (`requires_auth = True`).
+- **Input Parameters**: `meal_type` (optional), `focus` (optional), `target_calories` (optional), `ingredients` (optional list), `notes` (optional).
+- **Security**: The LLM cannot provide or override `user_id`, cannot inject arbitrary food objects, and cannot access the database directly.
+
+### Dedicated Endpoints
+
+- **Agent Conversational Interface (Primary)**: `POST /api/v1/agent/chat`
+- **Direct Recommendation Endpoint**: `POST /api/v1/recommendations` (returns structured `RecommendationResponse` with selected candidates, suggested meal breakdown, nutritional totals, and noted limitations).
+
+---
+
+## 10. Getting Started (Local Development)
 
 ### Prerequisites
 - Linux OS (recommended: Ubuntu / Debian / Fedora)
@@ -663,7 +759,7 @@ Access the interactive API documentation at:
 
 ---
 
-## 10. Running with Docker Compose
+## 11. Running with Docker Compose
 
 If using Docker:
 
@@ -677,9 +773,9 @@ This starts:
 
 ---
 
-## 11. Running Tests
+## 12. Running Tests
 
-Execute the automated test suite with pytest:
+Execute the automated test suite with pytest (153 unit, integration, and security tests across all 9 phases):
 
 ```bash
 PYTHONPATH=backend pytest -v
@@ -687,7 +783,7 @@ PYTHONPATH=backend pytest -v
 
 ---
 
-## 12. License
+## 13. License
 
 This project is licensed under the MIT License.
 

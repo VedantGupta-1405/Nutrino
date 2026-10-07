@@ -13,6 +13,7 @@ from app.api.v1.endpoints import (
     nutrition,
     ai,
     agent,
+    recommendations,
 )
 
 api_router = APIRouter()
@@ -43,4 +44,8 @@ api_router.include_router(ai.router)
 
 # AI Agent endpoints (Phase 8)
 api_router.include_router(agent.router)
+
+# Personalized Recommendations endpoints (Phase 9)
+api_router.include_router(recommendations.router)
+
 
