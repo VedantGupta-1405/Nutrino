@@ -68,3 +68,14 @@ def root():
         "docs": f"{settings.API_V1_STR}/docs",
         "health": f"{settings.API_V1_STR}/health",
     }
+
+
+@app.get("/health", tags=["Health"], include_in_schema=False)
+def health_check_root():
+    """Top-level health check endpoint for container probes."""
+    return {
+        "status": "healthy",
+        "service": settings.PROJECT_NAME,
+        "version": settings.VERSION,
+    }
+

@@ -19,13 +19,23 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Copy backend application and Alembic files
+# Create non-root system user for container security
+RUN useradd -m -u 1000 appuser
+
+# Copy application files, Alembic configuration, and entrypoint
 COPY alembic.ini .
 COPY alembic/ ./alembic/
 COPY app/ ./app/
+COPY entrypoint.sh .
 
-# Expose FastAPI port
+# Ensure entrypoint is executable and owned by non-root user
+RUN chmod +x entrypoint.sh && chown -R appuser:appuser /app
+
+USER appuser
+
+# Expose FastAPI application port
 EXPOSE 8000
 
-# Run uvicorn server
+# Set entrypoint to run migrations and start server
+ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

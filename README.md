@@ -842,39 +842,120 @@ The frontend application will start at:
 
 ---
 
-## 12. Running with Docker Compose
+## 12. Running with Docker Compose (Production Setup)
 
-If using Docker:
+Nutrino includes a production-ready, multi-container Docker Compose configuration that runs the complete application stack:
 
+- **`postgres`**: Stable PostgreSQL 16 Alpine container with health checks and persistent volume storage. Internal to the Docker Compose network.
+- **`backend`**: Production FastAPI application running Python 3.12 under a non-root system user (`appuser`). Waits for PostgreSQL health, applies Alembic database migrations automatically upon boot, idempotently verifies baseline catalog data, and exposes health probes.
+- **`frontend`**: Production multi-stage build serving optimized React/Vite assets via Nginx with single-page application (SPA) routing, internal API reverse proxying, and gzip compression.
+
+### Step-by-Step Deployment Guide
+
+#### 1. Clone Repository
 ```bash
-docker compose up -d --build
+git clone https://github.com/VedantGupta-1405/Nutrino.git
+cd Nutrino
 ```
 
-This starts:
-1. `nutrino_postgres`: PostgreSQL container on port `5432` with a persistent volume.
-2. `nutrino_backend`: FastAPI backend on port `8000` with hot-reload volume mounting.
+#### 2. Create Environment Configuration
+Copy the production environment template:
+```bash
+cp .env.example .env
+```
+Open `.env` and configure your settings:
+- Set a secure `POSTGRES_PASSWORD`
+- Generate and set a secure 32+ character `JWT_SECRET_KEY` (e.g. `openssl rand -hex 32`)
+- Ensure `OLLAMA_BASE_URL` points to your Ollama host (defaults to `http://host.docker.internal:11434` for container-to-host access)
+- Adjust `FRONTEND_PORT` (default `3000`) or `BACKEND_PORT` (default `8000`) if desired
+
+#### 3. Build and Start Application
+Start the multi-container stack:
+```bash
+docker compose up --build -d
+```
+
+#### 4. Access Application Services
+Once containers reach healthy status:
+- **Web Application (Frontend)**: [http://localhost:3000](http://localhost:3000)
+- **Backend API Documentation (Swagger UI)**: [http://localhost:8000/api/v1/docs](http://localhost:8000/api/v1/docs)
+- **Application Health Check**: [http://localhost:8000/api/v1/health](http://localhost:8000/api/v1/health) (or `http://localhost:8000/health`)
+- **Frontend Health Check**: [http://localhost:3000/health](http://localhost:3000/health)
+
+#### 5. Database Migrations & Persistence
+- **Automated Migrations**: When the `backend` container starts, its entrypoint script automatically checks PostgreSQL connectivity, runs `alembic upgrade head` to apply all pending schema migrations, and seeds baseline catalog food items before launching Uvicorn.
+- **Persistent Data**: Database data is stored safely in a named Docker volume (`postgres_data`), preserving all user accounts, meals, and logs across container restarts.
+
+#### 6. Stopping Containers
+- To stop containers while preserving persistent database data:
+  ```bash
+  docker compose down
+  ```
+- To stop containers and remove all stored data (clean slate reset):
+  ```bash
+  docker compose down -v
+  ```
 
 ---
 
-## 13. Running Tests
+## 13. Local Development Workflow
 
-### Backend Automated Test Suite
-Execute the backend test suite with pytest (153 unit, integration, and security tests across all 9 phases):
+If running locally without Docker:
 
+### 1. Start PostgreSQL
+```bash
+# Ensure PostgreSQL 16+ is running locally on port 5432
+# Database: nutrino_db, User: nutrino
+```
+
+### 2. Backend Setup
+```bash
+# Create and activate virtual environment
+python3 -m venv .venv
+source .venv/bin/activate
+
+# Install dependencies
+pip install -r backend/requirements.txt
+
+# Run migrations and seed baseline foods
+PYTHONPATH=backend alembic upgrade head
+PYTHONPATH=backend python -m app.database.seed
+
+# Start FastAPI development server
+PYTHONPATH=backend uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+### 3. Frontend Setup
+```bash
+cd frontend
+npm install
+npm run dev
+# Vite dev server runs at http://127.0.0.1:5173
+```
+
+---
+
+## 14. Running Automated Tests
+
+### Backend Test Suite
+Run all unit, integration, and evaluation tests (excluding live LLM tests for fast local verification):
+```bash
+PYTHONPATH=backend pytest -v -m "not llm"
+```
+
+To run the complete test suite including live Ollama/Qwen 3 8B evaluations:
 ```bash
 PYTHONPATH=backend pytest -v
 ```
 
-### Frontend Automated Test Suite
-Execute the frontend test suite with Vitest (20 component and page tests):
-
+### Frontend Test Suite
+Run Vitest component, route, and unit tests:
 ```bash
 cd frontend
-npm test
+npm test -- --run
 ```
 
 ### Frontend Production Build Verification
-
 ```bash
 cd frontend
 npm run build
@@ -882,7 +963,16 @@ npm run build
 
 ---
 
-## 14. License
+## 15. Continuous Integration (GitHub Actions)
+
+Nutrino features automated GitHub Actions CI (`.github/workflows/ci.yml`) on every push and pull request:
+1. **Backend Validation**: Sets up Python 3.12, installs dependencies, and runs all 193 deterministic backend tests.
+2. **Frontend Validation**: Sets up Node.js 20, runs all 20 Vitest frontend tests, and verifies Vite production compilation.
+3. **Docker Verification**: Validates Docker Compose configuration and builds both backend and frontend container images.
+
+---
+
+## 16. License
 
 This project is licensed under the MIT License.
 

@@ -47,3 +47,14 @@ def test_readiness_endpoint(client: TestClient):
     data = response.json()
     assert data["status"] == "ready"
     assert data["database"] == "connected"
+
+
+def test_root_health_endpoint(client: TestClient):
+    """Test top-level /health probe endpoint."""
+    response = client.get("/health")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "healthy"
+    assert data["service"] == "Nutrino"
+    assert "version" in data
+
