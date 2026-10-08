@@ -72,6 +72,8 @@ class AgentService:
         return AgentChatResponse(
             response=final_answer,
             tools_used=tools_used,
+            duration_seconds=round(total_duration, 3),
+            iterations=result.get("iteration_count", 0),
         )
 
 

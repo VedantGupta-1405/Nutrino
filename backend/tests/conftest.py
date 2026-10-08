@@ -9,8 +9,13 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-# Ensure backend directory is in python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+
+def pytest_configure(config):
+    """Register custom markers."""
+    config.addinivalue_line("markers", "llm: mark tests that require live Ollama LLM execution")
+
 
 from app.main import app
 from app.database.session import SessionLocal
