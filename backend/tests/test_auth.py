@@ -267,3 +267,23 @@ def test_inactive_user_cannot_access_me(client: TestClient, db_session: Session)
     )
     assert res.status_code == 401
     assert "inactive" in res.json()["error"]["message"].lower()
+
+
+def test_single_user_session_endpoint(client: TestClient, db_session: Session):
+    """Test obtaining personal single-user session token."""
+    res = client.post("/api/v1/auth/session")
+    assert res.status_code == 200
+    data = res.json()
+    assert "access_token" in data
+    assert data["token_type"] == "bearer"
+    assert "user" in data
+    assert data["user"]["is_active"] is True
+
+    # Verify that the returned token can access /me
+    me_res = client.get(
+        "/api/v1/auth/me",
+        headers={"Authorization": f"Bearer {data['access_token']}"},
+    )
+    assert me_res.status_code == 200
+    assert me_res.json()["id"] == data["user"]["id"]
+

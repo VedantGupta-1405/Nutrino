@@ -16,68 +16,56 @@ export function AuthProvider({ children }) {
   const [token, setToken] = useState(() => localStorage.getItem('nutrino_token') || null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const logout = useCallback(() => {
-    localStorage.removeItem('nutrino_token');
-    localStorage.removeItem('nutrino_user');
-    setToken(null);
-    setUser(null);
+  // Initialize or restore personal single-user session
+  const initSession = useCallback(async () => {
+    try {
+      const sessionData = await authApi.getSession();
+      localStorage.setItem('nutrino_token', sessionData.access_token);
+      localStorage.setItem('nutrino_user', JSON.stringify(sessionData.user));
+      setToken(sessionData.access_token);
+      setUser(sessionData.user);
+      return sessionData.user;
+    } catch (err) {
+      console.error('Failed to initialize single-user session:', err);
+      return null;
+    }
   }, []);
 
-  // Sync / verify authenticated user session on mount
   useEffect(() => {
-    async function verifySession() {
+    async function verifyOrInitSession() {
       const storedToken = localStorage.getItem('nutrino_token');
-      if (!storedToken) {
-        setIsLoading(false);
-        return;
+      if (storedToken) {
+        try {
+          const currentUser = await authApi.getCurrentUser();
+          setUser(currentUser);
+          localStorage.setItem('nutrino_user', JSON.stringify(currentUser));
+          setIsLoading(false);
+          return;
+        } catch {
+          // Stored token expired or invalid; fall through to get a fresh session
+        }
       }
-      try {
-        const currentUser = await authApi.getCurrentUser();
-        setUser(currentUser);
-        localStorage.setItem('nutrino_user', JSON.stringify(currentUser));
-      } catch {
-        logout();
-      } finally {
-        setIsLoading(false);
-      }
+
+      await initSession();
+      setIsLoading(false);
     }
 
-    verifySession();
+    verifyOrInitSession();
 
     const handleAuthExpired = () => {
-      logout();
+      initSession();
     };
 
     window.addEventListener('nutrino_auth_expired', handleAuthExpired);
     return () => window.removeEventListener('nutrino_auth_expired', handleAuthExpired);
-  }, [logout]);
-
-  const login = async (email, password) => {
-    const data = await authApi.login({ email, password });
-    localStorage.setItem('nutrino_token', data.access_token);
-    localStorage.setItem('nutrino_user', JSON.stringify(data.user));
-    setToken(data.access_token);
-    setUser(data.user);
-    return data.user;
-  };
-
-  const register = async (name, email, password) => {
-    const data = await authApi.register({ name, email, password });
-    localStorage.setItem('nutrino_token', data.access_token);
-    localStorage.setItem('nutrino_user', JSON.stringify(data.user));
-    setToken(data.access_token);
-    setUser(data.user);
-    return data.user;
-  };
+  }, [initSession]);
 
   const value = {
     user,
     token,
     isAuthenticated: !!token && !!user,
     isLoading,
-    login,
-    register,
-    logout,
+    refreshSession: initSession,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

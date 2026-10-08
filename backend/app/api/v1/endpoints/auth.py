@@ -59,3 +59,21 @@ def login(credentials: UserLogin, db: Session = Depends(get_db)) -> Token:
 )
 def read_current_user(current_user: User = Depends(get_current_user)) -> UserResponse:
     return UserResponse.model_validate(current_user)
+
+
+@router.post(
+    "/session",
+    response_model=Token,
+    summary="Obtain personal single-user application access token",
+    description="Resolves or initializes the primary local user for personal single-user application usage without login/signup.",
+)
+def get_single_user_session(db: Session = Depends(get_db)) -> Token:
+    user = user_service.get_or_create_default_user(db=db)
+    access_token = create_access_token(subject=user.id)
+    return Token(
+        access_token=access_token,
+        token_type="bearer",
+        expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        user=UserResponse.model_validate(user),
+    )
+

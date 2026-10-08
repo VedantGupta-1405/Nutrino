@@ -69,5 +69,39 @@ class UserService:
 
         return user
 
+    @classmethod
+    def get_or_create_default_user(
+        cls,
+        db: Session,
+        email: Optional[str] = None,
+        name: Optional[str] = None,
+    ) -> User:
+        """
+        Retrieves the primary active user for single-user mode or initializes a default owner user.
+        """
+        target_email = (email or "alex.nutrition@example.com").strip().lower()
+        user = cls.get_by_email(db, target_email)
+        if user and user.is_active:
+            return user
+
+        stmt = select(User).where(User.is_active == True).order_by(User.id.asc()).limit(1)
+        existing = db.execute(stmt).scalar_one_or_none()
+        if existing:
+            return existing
+
+        import secrets
+        random_pw = secrets.token_urlsafe(32)
+        hashed_password = get_password_hash(random_pw)
+        new_user = User(
+            name=name or "Alex Nutrition",
+            email=target_email,
+            password_hash=hashed_password,
+            is_active=True,
+        )
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+        return new_user
+
 
 user_service = UserService()

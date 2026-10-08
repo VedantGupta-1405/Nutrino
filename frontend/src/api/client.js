@@ -27,13 +27,9 @@ apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Don't auto-redirect if checking auth or on login/register pages
-      const path = window.location.pathname;
-      if (path !== '/login' && path !== '/register' && path !== '/') {
-        localStorage.removeItem('nutrino_token');
-        localStorage.removeItem('nutrino_user');
-        window.dispatchEvent(new Event('nutrino_auth_expired'));
-      }
+      localStorage.removeItem('nutrino_token');
+      localStorage.removeItem('nutrino_user');
+      window.dispatchEvent(new Event('nutrino_auth_expired'));
     }
     return Promise.reject(error);
   }

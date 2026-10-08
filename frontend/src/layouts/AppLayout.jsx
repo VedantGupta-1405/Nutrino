@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet } from 'react-router-dom';
 import {
   LayoutDashboard,
   UtensilsCrossed,
@@ -8,7 +8,6 @@ import {
   Compass,
   Target,
   User,
-  LogOut,
   Menu,
   X,
   ShieldCheck,
@@ -16,14 +15,8 @@ import {
 import { useAuth } from '../context/AuthContext';
 
 export function AppLayout() {
-  const { user, logout } = useAuth();
-  const navigate = useNavigate();
+  const { user } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-  };
 
   const navItems = [
     { name: 'Dashboard', to: '/dashboard', icon: LayoutDashboard },
@@ -53,7 +46,7 @@ export function AppLayout() {
           </div>
           <div>
             <div className="text-base font-bold tracking-tight text-slate-900 leading-none">Nutrino</div>
-            <div className="text-[10px] font-semibold text-emerald-700 tracking-wider uppercase mt-1">Health-Tech OS</div>
+            <div className="text-[10px] font-semibold text-emerald-700 tracking-wider uppercase mt-1">Personal Nutrition OS</div>
           </div>
         </div>
 
@@ -80,27 +73,21 @@ export function AppLayout() {
           })}
         </nav>
 
-        {/* User Profile & Logout */}
+        {/* Personal User Profile Card */}
         <div className="p-3 border-t border-slate-100">
-          <div className="flex items-center justify-between p-2 rounded-lg bg-slate-50/80 border border-slate-200/60">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold flex items-center justify-center shrink-0">
-                {getInitials(user?.name)}
-              </div>
-              <div className="min-w-0">
-                <p className="text-xs font-semibold text-slate-900 truncate">{user?.name || 'User'}</p>
-                <p className="text-[11px] text-slate-500 truncate">{user?.email || ''}</p>
-              </div>
+          <NavLink
+            to="/profile"
+            className="flex items-center gap-2.5 p-2 rounded-lg bg-slate-50/80 border border-slate-200/60 hover:bg-slate-100/80 transition-colors"
+            title="View Health Profile"
+          >
+            <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold flex items-center justify-center shrink-0">
+              {getInitials(user?.name)}
             </div>
-            <button
-              onClick={handleLogout}
-              className="p-1.5 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
-              title="Sign Out"
-              aria-label="Sign Out"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
-          </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold text-slate-900 truncate">{user?.name || 'Personal User'}</p>
+              <p className="text-[11px] text-slate-500 truncate">{user?.email || ''}</p>
+            </div>
+          </NavLink>
         </div>
       </aside>
 
@@ -169,27 +156,19 @@ export function AppLayout() {
             </nav>
 
             <div className="p-4 border-t border-slate-100">
-              <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-50 border border-slate-200/60 mb-2">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold flex items-center justify-center shrink-0">
-                    {getInitials(user?.name)}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold text-slate-900 truncate">{user?.name || 'User'}</p>
-                    <p className="text-[11px] text-slate-500 truncate">{user?.email || ''}</p>
-                  </div>
-                </div>
-              </div>
-              <button
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  handleLogout();
-                }}
-                className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-medium text-rose-700 bg-rose-50 hover:bg-rose-100 transition-colors"
+              <NavLink
+                to="/profile"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-2.5 p-2.5 rounded-lg bg-slate-50 border border-slate-200/60 hover:bg-slate-100 transition-colors"
               >
-                <LogOut className="w-4 h-4" />
-                <span>Sign Out</span>
-              </button>
+                <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold flex items-center justify-center shrink-0">
+                  {getInitials(user?.name)}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-semibold text-slate-900 truncate">{user?.name || 'Personal User'}</p>
+                  <p className="text-[11px] text-slate-500 truncate">{user?.email || ''}</p>
+                </div>
+              </NavLink>
             </div>
           </div>
         </div>

@@ -714,52 +714,47 @@ The controlled tool layer has been expanded from 11 to **12 registered tools**:
 
 ## 10. Phase 10 — Professional Web Application (Frontend)
 
-Nutrino includes a commercial-grade, light-first frontend built for health-tech SaaS applications. The frontend strictly consumes authoritative backend APIs without performing client-side nutrition calculations.
+Nutrino includes a commercial-grade, light-first frontend built for personal health-tech and meal planning. The frontend behaves as a personal single-user application without public login or signup screens, while seamlessly maintaining backend JWT authentication, user isolation, and deterministic nutrition engine integration.
 
 ### Technology Stack
 - **Framework & Tooling**: React 18, Vite 6, JavaScript (ES2022)
 - **Styling**: Vanilla Tailwind CSS with custom design tokens (`emerald-600` primary accents, `slate-50`/`white` neutral surfaces, custom elevation shadows)
 - **Data Fetching & State**: TanStack React Query v5 for server cache & state synchronization, Axios with centralized JWT auth interceptor
-- **Routing**: React Router v7 with protected routes and redirection guards
+- **Routing**: React Router v7 with personal application shell and direct dashboard access
 - **Visualizations**: Recharts (responsive calorie bar charts, macronutrient calorie donut charts, protein trend lines)
 - **Icons**: Lucide React (consistent, restrained, professional icon library)
 - **Strict Visual Requirement**: **Zero emojis** anywhere in the user interface (all visual affordances use professional typography, cards, badges, and Lucide vector icons).
 
-### Application Screens & Features
-1. **Public Landing Page (`/`)**:
-   - Modern hero section with value proposition: *"Personalized nutrition tracking and meal guidance"*.
-   - Feature preview cards: Nutrition tracking, personalized recommendations, AI assistant, goal tracking.
-   - Primary and secondary CTAs leading directly into sign-in or registration flows.
-2. **Authentication Flow (`/login`, `/register`)**:
-   - Secure login and registration with instant client feedback and server validation.
-   - Automatic JWT storage, user profile caching, and session auto-restoration.
-   - Unauthenticated route protection and 401 interceptor redirection.
-3. **Executive Dashboard (`/dashboard`)**:
+### Application Flow & Features
+1. **Direct Entry & Session Initialization (`/` -> `/dashboard`)**:
+   - The application opens directly into the executive Dashboard without login or registration barriers.
+   - Transparent single-user session initialization via `POST /api/v1/auth/session`, obtaining and storing a secure signed JWT access token in the background.
+2. **Executive Dashboard (`/dashboard`)**:
    - Personalized time-aware greeting (*"Good morning / afternoon / evening, [Name]"*).
    - Calorie intake circular progress indicator with remaining budget indicator.
    - Macronutrient breakdown cards (Protein, Carbohydrates, Fat) with individual target progress bars.
    - Chronological meal timeline with calorie summaries and quick detail inspection.
    - Daily personalized recommendation card and quick-action shortcuts.
-4. **Meal Tracking & History (`/meals`)**:
+3. **Meal Tracking & History (`/meals`)**:
    - Comprehensive chronological meal log with macro totals, timestamps, and food items.
    - Natural-language meal logging modal (*"What did you eat?"*) powered by the backend AI agent (`POST /api/v1/agent/chat`).
    - Meal item inspection and meal deletion with instant server cache invalidation.
-5. **Nutrition Analytics (`/nutrition`)**:
+4. **Nutrition Analytics (`/nutrition`)**:
    - Today's full intake breakdown (calories, protein, carbohydrates, dietary fat, fiber).
    - Recharts 7-day calorie intake comparison against daily target.
    - Interactive macronutrient calorie distribution donut chart (4 kcal/g protein, 4 kcal/g carbs, 9 kcal/g fat).
    - Multi-day protein intake trend chart.
-6. **Recommendations Studio (`/recommendations`)**:
+5. **Recommendations Studio (`/recommendations`)**:
    - Conversational and query-based meal suggestion tool (`POST /api/v1/recommendations`).
    - Quick-query suggestion chips (*"Suggest a high-protein vegetarian dinner"*, *"What should I eat if I have 600 calories left?"*).
    - Structured recommendation breakdown: food ingredients, portions, calories, macros, and clinical reasoning.
-7. **Embedded AI Assistant (`/assistant`)**:
+6. **Embedded AI Assistant (`/assistant`)**:
    - Purpose-built nutrition copilot integrated within the Nutrino shell (not a generic chatbot clone).
    - Session conversation history with message bubbles, action status, and suggested prompt starters.
-8. **Goal Configuration (`/goals`)**:
+7. **Goal Configuration (`/goals`)**:
    - Active goal tracking across multiple targets: *Weight Loss*, *Muscle Gain*, *Maintenance*, *General Health*.
    - Target configuration for daily calories, protein, carbohydrates, and fat.
-9. **User Health Profile (`/profile`)**:
+8. **User Health Profile (`/profile`)**:
    - Anthropometric details (age, height, weight, activity level).
    - Dietary preferences (vegetarian, vegan, non-vegetarian, etc.).
    - Allergies, disliked foods, daily budget, and available pantry ingredients.
