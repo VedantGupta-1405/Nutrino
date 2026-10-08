@@ -58,8 +58,9 @@ def llm_runtime_context(eval_user: User, db_session: Session) -> AgentRuntimeCon
     return AgentRuntimeContext(
         db=db_session,
         user=eval_user,
-        client=OllamaClient(),
+        client=OllamaClient(timeout=180.0),
     )
+
 
 
 # ==============================================================================
@@ -185,21 +186,41 @@ async def test_llm_recommendation_respects_allergy(
     db_session: Session,
     eval_user: User,
     llm_runtime_context: AgentRuntimeContext,
+    monkeypatch,
 ):
     """
     EVAL-RESTR-01: 'I am allergic to paneer. Suggest dinner.'
-    VERIFY: Recommendation does NOT recommend paneer, and causes zero meal creations.
+    VERIFY:
+    - Persistent profile has NO paneer allergy (e.g. ['peanuts']).
+    - LLM extracts ad-hoc restriction and passes it to recommend_meal.
+    - recommendation tool is used and excludes paneer deterministically.
+    - response does not recommend paneer.
+    - database mutation = 0 (no meals created, UserProfile unchanged).
     """
+    from app.recommendations.service import recommendation_service
+
     initial_meals = db_session.query(Meal).filter(Meal.user_id == eval_user.id).count()
 
-    # Set up user profile with allergy
+    # Set up user profile with ONLY peanuts allergy (paneer is NOT in persistent profile)
     profile = UserProfile(
         user_id=eval_user.id,
         dietary_preference="VEGETARIAN",
-        allergies_or_restrictions=["paneer"],
+        allergies_or_restrictions=["peanuts"],
     )
     db_session.add(profile)
     db_session.commit()
+
+    captured_requests = []
+    orig_build = recommendation_service.build_recommendation_context
+
+    def spy_build(*args, **kwargs):
+        if "request" in kwargs and kwargs["request"]:
+            captured_requests.append(kwargs["request"])
+        elif len(args) >= 3 and args[2]:
+            captured_requests.append(args[2])
+        return orig_build(*args, **kwargs)
+
+    monkeypatch.setattr(recommendation_service, "build_recommendation_context", spy_build)
 
     resp = await agent_service.chat(
         message="I am allergic to paneer. Suggest dinner.",
@@ -207,12 +228,26 @@ async def test_llm_recommendation_respects_allergy(
     )
 
     assert resp.response is not None
+    assert "recommend_meal" in resp.tools_used
     assert "create_meal" not in resp.tools_used
-    # Ensure response does not promote paneer as an ingredient to eat
-    assert "paneer" not in resp.response.lower() or "avoid" in resp.response.lower() or "allerg" in resp.response.lower()
 
+    # Verify restriction reached the backend rather than relying purely on final text
+    assert len(captured_requests) > 0, "recommendation_service.build_recommendation_context was not called"
+    last_req = captured_requests[-1]
+    cleaned_adhoc = [r.lower() for r in (last_req.ad_hoc_restrictions or [])]
+    assert any("paneer" in r for r in cleaned_adhoc), f"Ad-hoc restrictions did not contain paneer: {last_req.ad_hoc_restrictions}"
+
+    # Ensure response does not recommend paneer
+    lower_resp = resp.response.lower()
+    assert "paneer" not in lower_resp or any(kw in lower_resp for kw in ["avoid", "allerg", "without", "exclude", "no paneer", "free from", "restriction"])
+
+
+    # DB mutations = 0: no meals created, profile unchanged
     current_meals = db_session.query(Meal).filter(Meal.user_id == eval_user.id).count()
-    assert current_meals == initial_meals
+    assert current_meals == initial_meals == 0
+    db_session.refresh(profile)
+    assert profile.allergies_or_restrictions == ["peanuts"], "UserProfile was illegally mutated with ad-hoc allergy!"
+
 
 
 @pytest.mark.llm

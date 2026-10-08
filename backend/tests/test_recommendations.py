@@ -532,3 +532,239 @@ async def test_agent_chat_recommendation_ollama_timeout_504(client: TestClient, 
         json={"message": "Suggest a high-protein dinner."},
     )
     assert response.status_code == 504
+
+
+# ==============================================================================
+# 8. Phase 11.1: Deterministic Ad-Hoc Safety Constraints Tests
+# ==============================================================================
+
+def test_ad_hoc_allergy_excludes_food_deterministically(db_session: Session):
+    """
+    PROVE: An ad-hoc allergy (e.g. ['paneer']) excludes the food from candidates
+    even when the user has NO allergy in their persistent UserProfile.
+    """
+    seed_foods(db_session)
+    user = create_user(db_session, "adhoc_allg")
+
+    # Persistent profile has NO allergy
+    profile = UserProfile(
+        user_id=user.id,
+        dietary_preference="VEGETARIAN",
+        allergies_or_restrictions=[],
+    )
+    db_session.add(profile)
+    db_session.commit()
+
+    req = RecommendationRequest(
+        meal_type="DINNER",
+        ad_hoc_restrictions=["paneer"],
+    )
+
+    ctx = recommendation_service.build_recommendation_context(
+        db=db_session,
+        user=user,
+        request=req,
+    )
+
+    # 1. Candidates must NOT contain paneer
+    cand_names = [c.name.lower() for c in ctx.candidates]
+    assert cand_names, "Should return candidates"
+    assert not any("paneer" in name for name in cand_names)
+
+    # 2. Context preserves ad-hoc restriction info
+    assert "paneer" in ctx.ad_hoc_restrictions
+    assert "paneer" in ctx.allergies_or_restrictions
+
+    # 3. Persistent profile MUST NOT be mutated
+    db_session.refresh(profile)
+    assert profile.allergies_or_restrictions == []
+
+
+def test_persistent_and_ad_hoc_restrictions_combined_deterministically(db_session: Session):
+    """
+    PROVE: Effective restrictions are the union of persistent and ad-hoc constraints.
+    Both peanuts (persistent) and paneer (ad-hoc) must be excluded.
+    """
+    seed_foods(db_session)
+    user = create_user(db_session, "union_allg")
+
+    # Persistent profile has 'peanut' allergy
+    profile = UserProfile(
+        user_id=user.id,
+        dietary_preference="VEGETARIAN",
+        allergies_or_restrictions=["peanuts"],
+    )
+    db_session.add(profile)
+    db_session.commit()
+
+    req = RecommendationRequest(
+        meal_type="DINNER",
+        ad_hoc_restrictions=["paneer"],
+    )
+
+    ctx = recommendation_service.build_recommendation_context(
+        db=db_session,
+        user=user,
+        request=req,
+    )
+
+    cand_names = [c.name.lower() for c in ctx.candidates]
+    assert cand_names, "Should return candidates"
+    assert not any("paneer" in name for name in cand_names)
+    assert not any("peanut" in name for name in cand_names)
+
+    # Effective allergies must include both
+    assert "peanuts" in ctx.allergies_or_restrictions
+    assert "paneer" in ctx.allergies_or_restrictions
+
+    # Persistent profile must retain only its original persistent allergy
+    db_session.refresh(profile)
+    assert profile.allergies_or_restrictions == ["peanuts"]
+
+
+def test_ad_hoc_dislike_excludes_food_deterministically(db_session: Session):
+    """
+    PROVE: An ad-hoc dislike (e.g. ['paneer']) excludes the food without
+    changing persistent disliked_foods.
+    """
+    seed_foods(db_session)
+    user = create_user(db_session, "adhoc_dislike")
+
+    profile = UserProfile(
+        user_id=user.id,
+        dietary_preference="VEGETARIAN",
+        disliked_foods=["mushrooms"],
+    )
+    db_session.add(profile)
+    db_session.commit()
+
+    req = RecommendationRequest(
+        meal_type="DINNER",
+        ad_hoc_dislikes=["paneer"],
+    )
+
+    ctx = recommendation_service.build_recommendation_context(
+        db=db_session,
+        user=user,
+        request=req,
+    )
+
+    cand_names = [c.name.lower() for c in ctx.candidates]
+    assert not any("paneer" in name for name in cand_names)
+    assert not any("mushroom" in name for name in cand_names)
+
+    # Persistent profile remains unchanged
+    db_session.refresh(profile)
+    assert profile.disliked_foods == ["mushrooms"]
+
+
+def test_ad_hoc_restriction_does_not_mutate_database(db_session: Session):
+    """
+    PROVE: Recommendation context construction causes ZERO database mutations.
+    Count of meals, meal items, profiles, and goals before and after must be identical.
+    """
+    seed_foods(db_session)
+    user = create_user(db_session, "zero_mutation")
+
+    profile = UserProfile(
+        user_id=user.id,
+        dietary_preference="VEGETARIAN",
+        allergies_or_restrictions=["nuts"],
+    )
+    db_session.add(profile)
+    db_session.commit()
+
+    meals_before = db_session.query(Meal).count()
+    items_before = db_session.query(MealItem).count()
+    profiles_before = db_session.query(UserProfile).count()
+
+    req = RecommendationRequest(
+        meal_type="DINNER",
+        ad_hoc_restrictions=["paneer"],
+        ad_hoc_dislikes=["tofu"],
+    )
+
+    _ = recommendation_service.build_recommendation_context(
+        db=db_session,
+        user=user,
+        request=req,
+    )
+
+    meals_after = db_session.query(Meal).count()
+    items_after = db_session.query(MealItem).count()
+    profiles_after = db_session.query(UserProfile).count()
+
+    assert meals_after == meals_before
+    assert items_after == items_before
+    assert profiles_after == profiles_before
+    assert db_session.query(Meal).filter(Meal.user_id == user.id).count() == 0
+
+    db_session.refresh(profile)
+    assert profile.allergies_or_restrictions == ["nuts"]
+
+
+def test_food_mention_without_restriction_does_not_create_restriction(db_session: Session):
+    """
+    PROVE: Mentioning a food (e.g. as an available ingredient 'paneer' or notes)
+    does NOT add it to ad_hoc_restrictions and does NOT exclude it.
+    """
+    seed_foods(db_session)
+    user = create_user(db_session, "mention_user")
+
+    profile = UserProfile(
+        user_id=user.id,
+        dietary_preference="VEGETARIAN",
+        allergies_or_restrictions=[],
+    )
+    db_session.add(profile)
+    db_session.commit()
+
+    # User says: "I have paneer at home. What can I make?" -> ingredients=['paneer']
+    req = RecommendationRequest(
+        meal_type="DINNER",
+        ingredients=["paneer"],
+        ad_hoc_restrictions=[],
+    )
+
+    ctx = recommendation_service.build_recommendation_context(
+        db=db_session,
+        user=user,
+        request=req,
+    )
+
+    cand_names = [c.name.lower() for c in ctx.candidates]
+    # Paneer should NOT be excluded; it should actually be among the top candidates
+    assert any("paneer" in name for name in cand_names)
+    assert ctx.ad_hoc_restrictions == []
+    assert ctx.allergies_or_restrictions == []
+
+
+def test_recommend_meal_tool_executes_with_ad_hoc_constraints(db_session: Session):
+    """
+    PROVE: RecommendMealTool parses ad_hoc_restrictions, passes them to service,
+    and returns context with excluded foods.
+    """
+    seed_foods(db_session)
+    user = create_user(db_session, "tool_adhoc")
+
+    profile = UserProfile(
+        user_id=user.id,
+        dietary_preference="VEGETARIAN",
+    )
+    db_session.add(profile)
+    db_session.commit()
+
+    tool_input = {
+        "meal_type": "DINNER",
+        "ad_hoc_restrictions": ["paneer"],
+    }
+    tool_ctx = ToolContext(db=db_session, user=user)
+
+    result = tool_registry.execute("recommend_meal", tool_input, tool_ctx)
+
+    assert isinstance(result, RecommendationContext)
+    cand_names = [c.name.lower() for c in result.candidates]
+    assert not any("paneer" in name for name in cand_names)
+    assert "paneer" in result.ad_hoc_restrictions
+
+

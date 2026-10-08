@@ -71,6 +71,15 @@ class RecommendationService:
         req_ingredients = [ing.strip() for ing in (req.ingredients or []) if ing and ing.strip()]
         combined_ingredients = list(dict.fromkeys(profile_ingredients + req_ingredients))
 
+        # Ad-hoc constraints from current request
+        ad_hoc_restrictions = [r.strip() for r in (req.ad_hoc_restrictions or []) if r and r.strip()]
+        ad_hoc_dislikes = [d.strip() for d in (req.ad_hoc_dislikes or []) if d and d.strip()]
+        ad_hoc_dietary_pref = req.ad_hoc_dietary_preference.strip() if req.ad_hoc_dietary_preference else None
+
+        # Union of persistent and ad-hoc constraints
+        effective_allergies = list(dict.fromkeys(allergies + ad_hoc_restrictions))
+        effective_dislikes = list(dict.fromkeys(disliked + ad_hoc_dislikes))
+
         # 3. Extract goal facts
         goal_type = goal.goal_type if (goal and goal.is_active) else None
         target_cal = Decimal(str(goal.target_calories)) if (goal and goal.is_active and goal.target_calories is not None) else None
@@ -110,8 +119,10 @@ class RecommendationService:
 
         # 7. Apply deterministic constraints
         filtered_foods = filter_by_dietary_preference(all_foods, dietary_pref)
-        filtered_foods = filter_by_allergies(filtered_foods, allergies)
-        filtered_foods = filter_by_disliked_foods(filtered_foods, disliked)
+        if ad_hoc_dietary_pref:
+            filtered_foods = filter_by_dietary_preference(filtered_foods, ad_hoc_dietary_pref)
+        filtered_foods = filter_by_allergies(filtered_foods, effective_allergies)
+        filtered_foods = filter_by_disliked_foods(filtered_foods, effective_dislikes)
 
         # 8. Deterministic ranking and candidate selection
         scoring_context: Dict[str, Any] = {
@@ -139,6 +150,12 @@ class RecommendationService:
             limitations.append("No active nutrition goal is set; recommendations use standard balanced nutritional targets.")
         if not profile:
             limitations.append("No user profile configured; recommendations use default nutritional guidelines.")
+        if ad_hoc_restrictions:
+            limitations.append(f"Ad-hoc temporary restrictions applied: {', '.join(ad_hoc_restrictions)}.")
+        if ad_hoc_dislikes:
+            limitations.append(f"Ad-hoc temporary dislikes applied: {', '.join(ad_hoc_dislikes)}.")
+        if ad_hoc_dietary_pref:
+            limitations.append(f"Ad-hoc temporary dietary preference applied: {ad_hoc_dietary_pref}.")
 
         logger.info(
             "Built recommendation context for user %d: %d candidates selected from %d foods",
@@ -150,8 +167,8 @@ class RecommendationService:
         return RecommendationContext(
             user_id=user_id,
             dietary_preference=dietary_pref,
-            allergies_or_restrictions=allergies,
-            disliked_foods=disliked,
+            allergies_or_restrictions=effective_allergies,
+            disliked_foods=effective_dislikes,
             preferred_cuisine=cuisines,
             available_ingredients=combined_ingredients,
             budget_per_day=budget_per_day,
@@ -171,6 +188,9 @@ class RecommendationService:
             remaining_fat=remaining_fat,
             meal_type=req.meal_type,
             focus=req.focus,
+            ad_hoc_restrictions=ad_hoc_restrictions,
+            ad_hoc_dislikes=ad_hoc_dislikes,
+            ad_hoc_dietary_preference=ad_hoc_dietary_pref,
             candidates=candidates,
             limitations=limitations,
         )
@@ -225,6 +245,12 @@ class RecommendationService:
             explanation_parts.append(f"Selected to support your active {context.goal_type} goal.")
         if context.dietary_preference:
             explanation_parts.append(f"Strictly respects your {context.dietary_preference} preference.")
+        if context.ad_hoc_restrictions:
+            explanation_parts.append(f"Excludes temporary restrictions: {', '.join(context.ad_hoc_restrictions)}.")
+        if context.ad_hoc_dislikes:
+            explanation_parts.append(f"Excludes temporary dislikes: {', '.join(context.ad_hoc_dislikes)}.")
+        if context.ad_hoc_dietary_preference:
+            explanation_parts.append(f"Respects temporary {context.ad_hoc_dietary_preference} preference.")
 
         return RecommendationResponse(
             recommendation_summary=summary,
@@ -241,3 +267,4 @@ class RecommendationService:
 
 
 recommendation_service = RecommendationService()
+

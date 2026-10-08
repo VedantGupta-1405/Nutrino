@@ -90,4 +90,8 @@ class RecommendMealInput(BaseModel):
     target_calories: Optional[Decimal] = Field(default=None, ge=0, description="Optional target calorie budget for this meal")
     ingredients: Optional[List[str]] = Field(default_factory=list, description="Optional ingredients user has or wants to use")
     notes: Optional[str] = Field(default=None, description="Optional notes or context for the recommendation request")
+    ad_hoc_restrictions: Optional[List[str]] = Field(default_factory=list, description="Temporary allergies or restrictions stated in current request (e.g. ['paneer'])")
+    ad_hoc_dislikes: Optional[List[str]] = Field(default_factory=list, description="Temporary disliked foods or items to avoid in current request (e.g. ['mushroom'])")
+    ad_hoc_dietary_preference: Optional[str] = Field(default=None, description="Temporary dietary preference override for current request (e.g. 'VEGETARIAN', 'VEGAN')")
+
 

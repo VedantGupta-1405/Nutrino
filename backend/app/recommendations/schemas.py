@@ -16,6 +16,9 @@ class RecommendationRequest(BaseModel):
     target_calories: Optional[Decimal] = Field(None, ge=0, description="Specific target calories for this meal / remaining")
     ingredients: Optional[List[str]] = Field(default_factory=list, description="Specific ingredients user has or wants to use")
     notes: Optional[str] = Field(None, description="Optional conversational request notes")
+    ad_hoc_restrictions: Optional[List[str]] = Field(default_factory=list, description="Temporary allergies or restrictions stated in current request (e.g. ['paneer'])")
+    ad_hoc_dislikes: Optional[List[str]] = Field(default_factory=list, description="Temporary disliked foods or items to avoid in current request (e.g. ['mushroom'])")
+    ad_hoc_dietary_preference: Optional[str] = Field(None, description="Temporary dietary preference override for current request (e.g. 'VEGETARIAN', 'VEGAN')")
 
 
 class FoodCandidate(BaseModel):
@@ -45,6 +48,9 @@ class RecommendationContext(BaseModel):
     dietary_preference: Optional[str] = None
     allergies_or_restrictions: List[str] = Field(default_factory=list)
     disliked_foods: List[str] = Field(default_factory=list)
+    ad_hoc_restrictions: List[str] = Field(default_factory=list)
+    ad_hoc_dislikes: List[str] = Field(default_factory=list)
+    ad_hoc_dietary_preference: Optional[str] = None
     preferred_cuisine: List[str] = Field(default_factory=list)
     available_ingredients: List[str] = Field(default_factory=list)
     budget_per_day: Optional[float] = None

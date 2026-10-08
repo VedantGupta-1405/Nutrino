@@ -18,6 +18,8 @@ class RecommendMealTool(BaseTool[RecommendMealInput, RecommendationContext]):
         "Generate personalized meal recommendations based on the authenticated user's "
         "profile (dietary preferences, allergies, disliked foods, available ingredients), "
         "active goal, today's remaining calories and macronutrients, and catalog foods. "
+        "Accepts temporary request-specific constraints: ad_hoc_restrictions (e.g. ['paneer']), "
+        "ad_hoc_dislikes (e.g. ['mushrooms']), and ad_hoc_dietary_preference (e.g. 'VEGETARIAN', 'VEGAN'). "
         "Strictly read-only: does NOT create or log meals."
     )
     input_schema = RecommendMealInput
@@ -32,6 +34,9 @@ class RecommendMealTool(BaseTool[RecommendMealInput, RecommendationContext]):
             target_calories=params.target_calories,
             ingredients=params.ingredients,
             notes=params.notes,
+            ad_hoc_restrictions=params.ad_hoc_restrictions,
+            ad_hoc_dislikes=params.ad_hoc_dislikes,
+            ad_hoc_dietary_preference=params.ad_hoc_dietary_preference,
         )
         return recommendation_service.build_recommendation_context(
             db=context.db,

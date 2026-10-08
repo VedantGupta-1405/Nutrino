@@ -566,3 +566,321 @@ async def test_adversarial_prompts_enforce_backend_authority(
 
     if not adversarial_scenario.mutation_allowed:
         assert db_session.query(Meal).filter(Meal.user_id == eval_user.id).count() == initial_count
+
+
+# ==============================================================================
+# 9. PHASE 11.1: SECTION 11 IMPORTANT TEST CASES (DETERMINISTIC EVALUATION)
+# ==============================================================================
+
+@pytest.mark.asyncio
+async def test_case_1_adhoc_allergy_excludes_paneer_zero_mutation(
+    db_session: Session,
+    eval_user: User,
+    eval_context: AgentRuntimeContext,
+):
+    """
+    Test 1:
+    Input: "I am allergic to paneer. Suggest dinner."
+    Expected:
+    - recommendation requested
+    - paneer excluded
+    - DB mutation = 0
+    """
+    from app.database.seed import seed_foods
+    seed_foods(db_session)
+
+    meals_before = db_session.query(Meal).filter(Meal.user_id == eval_user.id).count()
+    profiles_before = db_session.query(UserProfile).filter(UserProfile.user_id == eval_user.id).count()
+
+    # Step 1: Agent decides to call recommend_meal with ad_hoc_restrictions=["paneer"]
+    eval_context.client.chat.side_effect = [
+        json.dumps({
+            "action": "call_tool",
+            "tool": "recommend_meal",
+            "arguments": {
+                "meal_type": "DINNER",
+                "ad_hoc_restrictions": ["paneer"],
+            },
+        }),
+        json.dumps({
+            "action": "final_response",
+            "content": "Here is a dinner recommendation without paneer: Dal Tadka and Rice.",
+        }),
+    ]
+
+    resp = await agent_service.chat(
+        message="I am allergic to paneer. Suggest dinner.",
+        runtime_context=eval_context,
+    )
+
+    # Assertions
+    assert "recommend_meal" in resp.tools_used
+    assert "create_meal" not in resp.tools_used
+
+    # DB mutation = 0
+    meals_after = db_session.query(Meal).filter(Meal.user_id == eval_user.id).count()
+    profiles_after = db_session.query(UserProfile).filter(UserProfile.user_id == eval_user.id).count()
+    assert meals_after == meals_before == 0
+    assert profiles_after == profiles_before
+
+    # Verify tool context candidates excluded paneer deterministically
+    req = RecommendationRequest(meal_type="DINNER", ad_hoc_restrictions=["paneer"])
+    ctx = recommendation_service.build_recommendation_context(db=db_session, user=eval_user, request=req)
+    cand_names = [c.name.lower() for c in ctx.candidates]
+    assert not any("paneer" in n for n in cand_names)
+    assert "paneer" in ctx.ad_hoc_restrictions
+
+
+@pytest.mark.asyncio
+async def test_case_2_persistent_allergy_plus_adhoc_excludes_both_zero_mutation(
+    db_session: Session,
+    eval_user: User,
+    eval_context: AgentRuntimeContext,
+):
+    """
+    Test 2:
+    Persistent: allergy = ["peanuts"]
+    Input: "I cannot eat paneer today. Suggest dinner."
+    Expected:
+    - peanuts excluded
+    - paneer excluded
+    - DB mutation = 0
+    """
+    from app.database.seed import seed_foods
+    seed_foods(db_session)
+
+    # Setup persistent profile with peanut allergy
+    profile = UserProfile(
+        user_id=eval_user.id,
+        dietary_preference="VEGETARIAN",
+        allergies_or_restrictions=["peanuts"],
+    )
+    db_session.add(profile)
+    db_session.commit()
+
+    meals_before = db_session.query(Meal).filter(Meal.user_id == eval_user.id).count()
+
+    eval_context.client.chat.side_effect = [
+        json.dumps({
+            "action": "call_tool",
+            "tool": "recommend_meal",
+            "arguments": {
+                "meal_type": "DINNER",
+                "ad_hoc_restrictions": ["paneer"],
+            },
+        }),
+        json.dumps({
+            "action": "final_response",
+            "content": "Recommended dinner strictly excluding peanuts and paneer.",
+        }),
+    ]
+
+    resp = await agent_service.chat(
+        message="I cannot eat paneer today. Suggest dinner.",
+        runtime_context=eval_context,
+    )
+
+    assert "recommend_meal" in resp.tools_used
+    assert "create_meal" not in resp.tools_used
+
+    # DB mutation = 0
+    meals_after = db_session.query(Meal).filter(Meal.user_id == eval_user.id).count()
+    assert meals_after == meals_before == 0
+
+    db_session.refresh(profile)
+    assert profile.allergies_or_restrictions == ["peanuts"]
+
+    # Verify backend combined restrictions
+    req = RecommendationRequest(meal_type="DINNER", ad_hoc_restrictions=["paneer"])
+    ctx = recommendation_service.build_recommendation_context(db=db_session, user=eval_user, request=req)
+    cand_names = [c.name.lower() for c in ctx.candidates]
+    assert not any("paneer" in n for n in cand_names)
+    assert not any("peanut" in n for n in cand_names)
+    assert "peanuts" in ctx.allergies_or_restrictions
+    assert "paneer" in ctx.allergies_or_restrictions
+
+
+@pytest.mark.asyncio
+async def test_case_3_ingredient_mention_not_treated_as_restriction(
+    db_session: Session,
+    eval_user: User,
+    eval_context: AgentRuntimeContext,
+):
+    """
+    Test 3:
+    Input: "I have paneer at home. What can I make?"
+    Expected:
+    - paneer is NOT automatically treated as an allergy/restriction
+    - recommendation can consider paneer
+    """
+    from app.database.seed import seed_foods
+    seed_foods(db_session)
+
+    eval_context.client.chat.side_effect = [
+        json.dumps({
+            "action": "call_tool",
+            "tool": "recommend_meal",
+            "arguments": {
+                "ingredients": ["paneer"],
+                "ad_hoc_restrictions": [],
+            },
+        }),
+        json.dumps({
+            "action": "final_response",
+            "content": "Since you have paneer at home, you can make Paneer Bhurji with Roti.",
+        }),
+    ]
+
+    resp = await agent_service.chat(
+        message="I have paneer at home. What can I make?",
+        runtime_context=eval_context,
+    )
+
+    assert "recommend_meal" in resp.tools_used
+    assert "create_meal" not in resp.tools_used
+
+    # Verify backend considers paneer
+    req = RecommendationRequest(ingredients=["paneer"], ad_hoc_restrictions=[])
+    ctx = recommendation_service.build_recommendation_context(db=db_session, user=eval_user, request=req)
+    cand_names = [c.name.lower() for c in ctx.candidates]
+    assert any("paneer" in n for n in cand_names), "Paneer should be considered as an ingredient candidate"
+    assert ctx.ad_hoc_restrictions == []
+
+
+@pytest.mark.asyncio
+async def test_case_4_adhoc_dislike_excludes_food_profile_unchanged(
+    db_session: Session,
+    eval_user: User,
+    eval_context: AgentRuntimeContext,
+):
+    """
+    Test 4:
+    Input: "I don't want paneer tonight."
+    Expected:
+    - paneer excluded from this recommendation
+    - profile remains unchanged
+    """
+    from app.database.seed import seed_foods
+    seed_foods(db_session)
+
+    profile = UserProfile(
+        user_id=eval_user.id,
+        dietary_preference="VEGETARIAN",
+        disliked_foods=[],
+    )
+    db_session.add(profile)
+    db_session.commit()
+
+    eval_context.client.chat.side_effect = [
+        json.dumps({
+            "action": "call_tool",
+            "tool": "recommend_meal",
+            "arguments": {
+                "meal_type": "DINNER",
+                "ad_hoc_dislikes": ["paneer"],
+            },
+        }),
+        json.dumps({
+            "action": "final_response",
+            "content": "Suggested dinner avoiding paneer: Dal Makhani with Rice.",
+        }),
+    ]
+
+    resp = await agent_service.chat(
+        message="I don't want paneer tonight.",
+        runtime_context=eval_context,
+    )
+
+    assert "recommend_meal" in resp.tools_used
+
+    # Verify paneer excluded
+    req = RecommendationRequest(meal_type="DINNER", ad_hoc_dislikes=["paneer"])
+    ctx = recommendation_service.build_recommendation_context(db=db_session, user=eval_user, request=req)
+    cand_names = [c.name.lower() for c in ctx.candidates]
+    assert not any("paneer" in n for n in cand_names)
+    assert "paneer" in ctx.ad_hoc_dislikes
+
+    # Profile remains unchanged
+    db_session.refresh(profile)
+    assert profile.disliked_foods == []
+
+
+@pytest.mark.asyncio
+async def test_case_5_mention_usually_eats_does_not_exclude_food(
+    db_session: Session,
+    eval_user: User,
+    eval_context: AgentRuntimeContext,
+):
+    """
+    Test 5:
+    Input: "I usually eat paneer."
+    Expected:
+    - paneer is not excluded
+    """
+    from app.database.seed import seed_foods
+    seed_foods(db_session)
+
+    # Conversational response without creating restriction
+    eval_context.client.chat.return_value = json.dumps({
+        "action": "final_response",
+        "content": "Paneer is a great vegetarian source of protein and calcium! Let me know if you want meal ideas with it.",
+    })
+
+    resp = await agent_service.chat(
+        message="I usually eat paneer.",
+        runtime_context=eval_context,
+    )
+
+    assert resp.response is not None
+    assert "create_meal" not in resp.tools_used
+
+    # Backend check: standard recommendation context does NOT exclude paneer
+    req = RecommendationRequest(meal_type="DINNER", ad_hoc_restrictions=[])
+    ctx = recommendation_service.build_recommendation_context(db=db_session, user=eval_user, request=req)
+    cand_names = [c.name.lower() for c in ctx.candidates]
+    assert any("paneer" in n for n in cand_names)
+
+
+@pytest.mark.asyncio
+async def test_case_6_request_something_with_food_includes_it(
+    db_session: Session,
+    eval_user: User,
+    eval_context: AgentRuntimeContext,
+):
+    """
+    Test 6:
+    Input: "Can you suggest something with paneer?"
+    Expected:
+    - paneer may be included
+    """
+    from app.database.seed import seed_foods
+    seed_foods(db_session)
+
+    eval_context.client.chat.side_effect = [
+        json.dumps({
+            "action": "call_tool",
+            "tool": "recommend_meal",
+            "arguments": {
+                "ingredients": ["paneer"],
+                "notes": "meal with paneer",
+            },
+        }),
+        json.dumps({
+            "action": "final_response",
+            "content": "Here is a meal featuring paneer: Palak Paneer with Roti.",
+        }),
+    ]
+
+    resp = await agent_service.chat(
+        message="Can you suggest something with paneer?",
+        runtime_context=eval_context,
+    )
+
+    assert "recommend_meal" in resp.tools_used
+
+    # Backend check: paneer is included in candidates
+    req = RecommendationRequest(ingredients=["paneer"], notes="meal with paneer")
+    ctx = recommendation_service.build_recommendation_context(db=db_session, user=eval_user, request=req)
+    cand_names = [c.name.lower() for c in ctx.candidates]
+    assert any("paneer" in n for n in cand_names)
+

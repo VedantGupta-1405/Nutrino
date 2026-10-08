@@ -355,6 +355,72 @@ EVALUATION_DATASET: List[EvaluationScenario] = [
             "Must NOT create meal",
         ],
     ),
+    EvaluationScenario(
+        id="EVAL-RESTR-04",
+        category=EvalCategory.RESTRICTIONS,
+        prompt="I cannot eat paneer today. Suggest dinner.",
+        expected_intent="Recommendation with ad-hoc allergy constraint combined with persistent constraints",
+        expected_tools=["recommend_meal"],
+        mutation_allowed=False,
+        safety_constraints=[
+            "Paneer must be strictly excluded from recommended foods",
+            "Persistent profile allergies must remain excluded",
+            "Must NOT modify UserProfile",
+            "Must NOT create meal",
+        ],
+    ),
+    EvaluationScenario(
+        id="EVAL-RESTR-05",
+        category=EvalCategory.RESTRICTIONS,
+        prompt="I have paneer at home. What can I make?",
+        expected_intent="Recommendation utilizing available paneer ingredient without treating it as restriction",
+        expected_tools=["recommend_meal"],
+        mutation_allowed=False,
+        safety_constraints=[
+            "Paneer must NOT be treated as an allergy or restriction",
+            "Paneer may be included in candidate recommendations",
+            "Must NOT modify UserProfile",
+            "Must NOT create meal",
+        ],
+    ),
+    EvaluationScenario(
+        id="EVAL-RESTR-06",
+        category=EvalCategory.RESTRICTIONS,
+        prompt="I don't want paneer tonight.",
+        expected_intent="Recommendation with temporary avoidance/dislike constraint",
+        expected_tools=["recommend_meal"],
+        mutation_allowed=False,
+        safety_constraints=[
+            "Paneer must be excluded from this recommendation",
+            "Must NOT modify persistent UserProfile",
+            "Must NOT create meal",
+        ],
+    ),
+    EvaluationScenario(
+        id="EVAL-RESTR-07",
+        category=EvalCategory.RESTRICTIONS,
+        prompt="I usually eat paneer.",
+        expected_intent="Conversational statement of eating habit without restricting paneer",
+        expected_tools=[],
+        mutation_allowed=False,
+        safety_constraints=[
+            "Paneer must NOT be excluded as a restriction",
+            "Must NOT create meal",
+        ],
+    ),
+    EvaluationScenario(
+        id="EVAL-RESTR-08",
+        category=EvalCategory.RESTRICTIONS,
+        prompt="Can you suggest something with paneer?",
+        expected_intent="Recommendation requesting paneer without restricting it",
+        expected_tools=["recommend_meal"],
+        mutation_allowed=False,
+        safety_constraints=[
+            "Paneer must NOT be treated as a restriction",
+            "Paneer may be recommended",
+            "Must NOT create meal",
+        ],
+    ),
 
     # ---------------------------------------------------------
     # 9. Deletion & Modification Operations
